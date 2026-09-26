@@ -10,6 +10,7 @@ Live at https://omyla.uwaaa.com. This is an early web slice of Talk / Point / Dr
 - A separate session Durable Object keeps the ten most recent goals for this browser. The session is carried by an HttpOnly cookie; it is not an account and does not sync across devices. The UI can delete the saved history.
 - The optional unpacked Chromium extension in `extension/` adds Point / Draw over the currently active web page and hands only selected DOM labels, page hostname/title, and the user's instruction to the public preview for review. See `extension/README.md` for installation and scope.
 - The intended resident UI is a single small button on the page; the action panel and drawing surface appear only while the user opens it. The larger public site remains an explanatory preview.
+- `desktop/` is a local Electron shell with one button above the desktop and a short request panel; it hands text to the public preview for review. It does not yet capture the screen or control other applications. See `desktop/README.md`.
 - Agent responses are proposals only. The service cannot read email, alter code, browse the computer, publish, or execute tools. There is no simulated approval button.
 
 ## Deployment
