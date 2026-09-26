@@ -41,6 +41,9 @@ export class Quota extends DurableObject {
 
 function normalizeContext(value) {
   if (!value || typeof value !== 'object') return {};
+  const surface = value.surface?.kind === 'browser-tab'
+    ? { kind: 'browser-tab', host: String(value.surface.host || '').slice(0, 120), title: String(value.surface.title || '').slice(0, 160) }
+    : { kind: 'demo-page', title: 'OMYLA demo page' };
   const targets = Array.isArray(value.targets) ? value.targets.slice(0, 6).map(x => String(x).slice(0, 180)) : [];
   const coordinate = n => Number.isFinite(Number(n)) ? Math.max(0, Math.min(1, Number(n))) : 0;
   const marks = Array.isArray(value.marks) ? value.marks.slice(0, 12).map(x => ({
@@ -49,8 +52,8 @@ function normalizeContext(value) {
     box: x?.box ? { x: coordinate(x.box.x), y: coordinate(x.box.y), width: coordinate(x.box.width), height: coordinate(x.box.height) } : undefined,
     tip: x?.tip ? { x: coordinate(x.tip.x), y: coordinate(x.tip.y) } : undefined
   })) : [];
-  const files = Array.isArray(value.files) ? value.files.slice(0, 5).map(x => ({ name: String(x.name).slice(0, 100), type: String(x.type).slice(0, 50) })) : [];
-  return { surface: 'OMYLA demo page', targets, marks, files };
+  const files = Array.isArray(value.files) ? value.files.slice(0, 5).map(x => ({ name: String(x?.name || '').slice(0, 100), type: String(x?.type || '').slice(0, 50) })) : [];
+  return { surface, targets, marks, files };
 }
 
 async function runAgent(env, agent, goal, context) {
