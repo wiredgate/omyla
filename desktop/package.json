@@ -1,0 +1,8 @@
+{
+  "name": "omyla-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": { "start": "electron ." },
+  "devDependencies": { "electron": "44.4.5" }
+}
