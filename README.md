@@ -1,41 +1,18 @@
-# OMYLA MVP — local foundation v0.1
+# OMYLA public preview
 
-This is the first executable vertical slice following the OMYLA directive. It is deliberately a **local prototype**, not the production product.
+Live at https://omyla.uwaaa.com. This is an early web slice of Talk / Point / Draw / Drop, not a desktop overlay or a connected computer assistant.
 
-## Run
+## What works
 
-Requires Node.js 20+. No package installation or credentials are required.
+- Voice transcription in browsers with SpeechRecognition, text requests, pointing and drawing over this page's demo region, and file metadata Drop. File contents are never uploaded.
+- The page associates a point or drawn region with a visible demo element, then sends the goal and selected labels to `/api/goals`.
+- A Cloudflare Worker calls Workers AI for Kai, Mia, and Emma in parallel. Identity prompts are independent of the model identifier. The Worker limits each IP to five goals and everyone to 30 goals per UTC day using a SQLite Durable Object.
+- Agent responses are proposals only. The service cannot read email, alter code, browse the computer, publish, or execute tools. There is no simulated approval button.
 
-```bash
-npm start
-```
+## Deployment
 
-Open `http://127.0.0.1:4173` in a browser. Draw a circle, point to the demo screen, and assign a goal. The public interface simulates Kai, Mia, and Emma independently in the current browser tab. Kai pauses at a simulated publish approval; approving or denying completes the goal. Browser speech recognition is used when available; text input always works.
+Pushes to `main` deploy through GitHub Actions using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The Cloudflare Worker and custom domain are defined in `wrangler.jsonc`. Never commit credentials. The model is configured in `src/worker.js`; replace `runAgent` with a provider adapter to route other models without changing agent identities.
 
-## Cloudflare deployment
+## Development boundaries
 
-The `public/` directory is a static Cloudflare Workers Assets project configured by `wrangler.jsonc`. It needs no AI credentials or paid AI calls. The GitHub Actions workflow deploys every push to `main` using the Cloudflare account ID and a scoped API token stored as GitHub repository secrets. Wrangler's `custom_domain` route creates `omyla.uwaaa.com` on deployment if the Cloudflare zone is active and no conflicting CNAME record exists. Do not commit the token. The first deployment requires `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in repository Actions secrets.
-
-```bash
-npm test
-```
-
-## Implemented boundaries
-
-- `AgentIdentity` is separate from `DemoModelAdapter`; the adapter can be replaced without renaming an agent.
-- `Orchestrator` on the local Node server runs independent agent steps concurrently, records events, and waits on one approval without stopping other steps. The public static frontend is a browser-only interaction demo; it does not invoke this server.
-- `PermissionEngine` denies physical operations and asks for external actions. Every unknown capability is denied.
-- Screen point and stroke geometry travel alongside a goal as context, with dimensions and capture time.
-- The server binds to loopback only. No external service, real email, browser control, deployment, purchase, or AI provider is called.
-
-## Next implementation increments
-
-1. Add durable PostgreSQL storage, authentication, workspace boundaries, workflow recovery, and authenticated event streaming. The current `MemoryStore` loses state on restart.
-2. Build the Electron desktop shell and native Windows/macOS accessibility bridge; capture only user-invoked context, with explicit OS permission.
-3. Add browser extension and Playwright cloud-browser worker. Match drawing regions to DOM/accessibility bounds and require fresh snapshots for actions.
-4. Add real model adapters, constrained tool registry, connector credentials in a secrets manager, idempotency, budgets, and audit trails.
-5. Add mobile companion and device registration. Require signed, scoped approval tokens validated immediately before execution.
-
-## Review notes
-
-This prototype proves the interaction shape only. The public frontend has no backend or shared user data. Its agent output is scripted and must never be represented as real investigation. The Node server separately proves orchestration mechanics. The current UI is a browser preview of Presence and Overlay, not a transparent desktop overlay. It does not yet implement actual Drop, cross-device state, screen capture, or Computer Use. Those require the next increments above and must not be inferred from the demo.
+The local Node prototype under `src/core.js` and `src/server.js` explores a permission engine and event records. It is not called by the deployed Worker. The public Worker does not persist goals or have accounts, connector credentials, computer use, or a real approval workflow. Desktop overlay, OS accessibility and capture, authenticated workspaces, durable goal orchestration, and mobile companion are separate subsequent phases.
