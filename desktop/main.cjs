@@ -1,11 +1,25 @@
 const { app, BrowserWindow, ipcMain, screen, shell } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
 
 const compact = { width: 64, height: 64 };
-const expanded = { width: 420, height: 330 };
+const expanded = { width: 420, height: 372 };
 let win;
 let open = false;
 let anchor;
+let launchOnLogin = true;
+
+function configureLogin(enabled) {
+  if (!app.isPackaged || !['win32', 'darwin'].includes(process.platform)) return false;
+  app.setLoginItemSettings({ openAtLogin: enabled });
+  return app.getLoginItemSettings().openAtLogin;
+}
+
+function loadPreferences() {
+  const filename = path.join(app.getPath('userData'), 'presence.json');
+  try { launchOnLogin = JSON.parse(fs.readFileSync(filename, 'utf8')).launchOnLogin !== false; } catch { launchOnLogin = true; }
+  configureLogin(launchOnLogin);
+}
 
 function place(size) {
   const display = screen.getDisplayNearestPoint(anchor);
@@ -52,9 +66,20 @@ ipcMain.handle('overlay:open-goal', async (event, value) => {
   return true;
 });
 ipcMain.handle('overlay:quit', event => { if (authorized(event)) app.quit(); });
+ipcMain.handle('overlay:get-login', event => authorized(event) ? { available: app.isPackaged && ['win32', 'darwin'].includes(process.platform), enabled: launchOnLogin } : null);
+ipcMain.handle('overlay:set-login', (event, enabled) => {
+  if (!authorized(event) || typeof enabled !== 'boolean' || !app.isPackaged || !['win32', 'darwin'].includes(process.platform)) return false;
+  try {
+    const actual = configureLogin(enabled);
+    if (actual !== enabled) return false;
+    fs.writeFileSync(path.join(app.getPath('userData'), 'presence.json'), JSON.stringify({ launchOnLogin: enabled }));
+    launchOnLogin = enabled;
+    return true;
+  } catch { return false; }
+});
 
 if (app.requestSingleInstanceLock()) {
-  app.whenReady().then(create);
+  app.whenReady().then(() => { loadPreferences(); create(); });
   app.on('second-instance', () => { if (win && !win.isDestroyed()) win.show(); });
   app.on('window-all-closed', () => app.quit());
 } else app.quit();
