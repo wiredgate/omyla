@@ -11,6 +11,7 @@ const sessionId = request => request.headers.get('Cookie')?.match(/(?:^|;\s*)omy
 
 export class GoalSession extends DurableObject {
   async list() { return (await this.ctx.storage.get('goals')) || []; }
+  async clear() { await this.ctx.storage.delete('goals'); }
   async save(record) {
     const goals = await this.list();
     const index = goals.findIndex(item => item.id === record.id);
@@ -70,6 +71,11 @@ export default {
       return response;
     };
     if (request.method === 'GET') return reply({ goals: await session.list() });
+    if (request.method === 'DELETE') {
+      if (request.headers.get('Origin') !== url.origin) return reply({ error: 'origin_denied' }, 403);
+      await session.clear();
+      return reply({ goals: [] });
+    }
     if (request.method !== 'POST') return reply({ error: 'method_not_allowed' }, 405);
     if (request.headers.get('Origin') !== url.origin) return reply({ error: 'origin_denied' }, 403);
     if (!request.headers.get('content-type')?.startsWith('application/json')) return json({ error: 'json_required' }, 415);
