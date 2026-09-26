@@ -6,4 +6,5 @@ orb.onclick = async () => show(await window.omyla.toggle());
 document.getElementById('close').onclick = async () => { await window.omyla.close(); show(false); };
 document.getElementById('send').onclick = async () => { if (!goal.value.trim()) { goal.focus(); return; } const sent = await window.omyla.openGoal(goal.value); if (sent) { goal.value = ''; show(false); } };
 document.getElementById('quit').onclick = () => window.omyla.quit();
+window.omyla.getLogin().then(settings => { if (!settings?.available) return; const option = document.getElementById('login-option'), checkbox = document.getElementById('login'); option.hidden = false; checkbox.checked = settings.enabled; checkbox.onchange = async () => { if (!await window.omyla.setLogin(checkbox.checked)) checkbox.checked = !checkbox.checked; }; });
 document.addEventListener('keydown', async event => { if (event.key === 'Escape' && !panel.hidden) { await window.omyla.close(); show(false); orb.focus(); } });
