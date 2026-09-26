@@ -9,14 +9,19 @@ const model = '@cf/meta/llama-3.1-8b-instruct-fp8-fast';
 const json = (body, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
 export class Quota extends DurableObject {
-  async reserve(ip) {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS quotas (key TEXT PRIMARY KEY, used INTEGER NOT NULL)');
+  }
+  reserve(ip) {
     const date = new Date().toISOString().slice(0, 10);
     const key = `day:${date}`;
     const ipKey = `ip:${date}:${ip}`;
-    const total = (await this.ctx.storage.get(key)) || 0;
-    const personal = (await this.ctx.storage.get(ipKey)) || 0;
+    const total = this.ctx.storage.sql.exec('SELECT used FROM quotas WHERE key = ?', key).toArray()[0]?.used || 0;
+    const personal = this.ctx.storage.sql.exec('SELECT used FROM quotas WHERE key = ?', ipKey).toArray()[0]?.used || 0;
     if (total >= 30 || personal >= 5) return false;
-    await this.ctx.storage.put({ [key]: total + 1, [ipKey]: personal + 1 });
+    this.ctx.storage.sql.exec('INSERT INTO quotas (key, used) VALUES (?, 1) ON CONFLICT(key) DO UPDATE SET used = used + 1', key);
+    this.ctx.storage.sql.exec('INSERT INTO quotas (key, used) VALUES (?, 1) ON CONFLICT(key) DO UPDATE SET used = used + 1', ipKey);
     return true;
   }
 }
