@@ -14,7 +14,7 @@ Open `http://127.0.0.1:4173` in a browser. Draw a circle, point to the demo scre
 
 ## Cloudflare deployment
 
-The `public/` directory is a static Cloudflare Workers Assets project configured by `wrangler.jsonc`. It needs no secrets or paid AI calls. Connect the GitHub repository to Cloudflare Workers Builds using `public` as the assets directory, or deploy with `npx wrangler deploy` from the repository root. Bind the custom domain `omyla.uwaaa.com` in Cloudflare after creating the Worker. The custom domain is not created by `wrangler.jsonc`.
+The `public/` directory is a static Cloudflare Workers Assets project configured by `wrangler.jsonc`. It needs no AI credentials or paid AI calls. The GitHub Actions workflow deploys every push to `main` using the Cloudflare account ID and a scoped API token stored as GitHub repository secrets. Wrangler's `custom_domain` route creates `omyla.uwaaa.com` on deployment if the Cloudflare zone is active and no conflicting CNAME record exists. Do not commit the token. The first deployment requires `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in repository Actions secrets.
 
 ```bash
 npm test
