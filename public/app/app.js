@@ -3,6 +3,12 @@ const $ = id => document.getElementById(id);
 const stage = $('stage'), canvas = $('ink'), ctx = canvas.getContext('2d');
 const crew = ['Kai', 'Mia', 'Emma'];
 let drawing = false, strokes = [], pointer = null, files = [], goals = [], lastOverride = 'auto', handoff = null;
+const toggle = $('presence-toggle'), workspace = $('workspace'), scrim = $('scrim');
+function setOpen(open) { workspace.hidden = !open; scrim.hidden = !open; toggle.setAttribute('aria-expanded', String(open)); if (open) { requestAnimationFrame(resize); $('instruction').focus(); } else toggle.focus(); }
+toggle.onclick = () => setOpen(true);
+$('close-workspace').onclick = () => setOpen(false);
+scrim.onclick = () => setOpen(false);
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && !workspace.hidden) setOpen(false); });
 const clamp = n => Math.max(0, Math.min(1, n));
 function bounds() { return stage.getBoundingClientRect(); }
 function resize() { const box = bounds(), scale = devicePixelRatio || 1; canvas.width = box.width * scale; canvas.height = box.height * scale; ctx.setTransform(scale, 0, 0, scale, 0, 0); renderInk(); }
@@ -22,7 +28,7 @@ $('mark-kind').onchange = event => { lastOverride = event.target.value; updateSe
 const releaseHandoff = document.createElement('button'); releaseHandoff.textContent = '選択を解除'; releaseHandoff.type = 'button'; releaseHandoff.hidden = true; releaseHandoff.className = 'release-handoff'; $('selection').after(releaseHandoff);
 releaseHandoff.onclick = () => { handoff = null; releaseHandoff.hidden = true; updateSelection(); };
 if (location.hash.startsWith('#omyla=')) {
-  try { const transfer = JSON.parse(decodeURIComponent(location.hash.slice(7))); if (['browser-tab','desktop'].includes(transfer?.context?.surface?.kind) && typeof transfer.goal === 'string' && transfer.goal.length <= 1500) { handoff = transfer.context; $('instruction').value = transfer.goal; releaseHandoff.hidden = false; updateSelection(); } } catch {}
+  try { const transfer = JSON.parse(decodeURIComponent(location.hash.slice(7))); if (['browser-tab','desktop'].includes(transfer?.context?.surface?.kind) && typeof transfer.goal === 'string' && transfer.goal.length <= 1500) { handoff = transfer.context; $('instruction').value = transfer.goal; releaseHandoff.hidden = false; updateSelection(); setOpen(true); } } catch {}
   history.replaceState(null, '', location.pathname + location.search);
 }
 for (const name of ['dragenter', 'dragover']) $('drop').addEventListener(name, event => { event.preventDefault(); $('drop').classList.add('dropping'); });
