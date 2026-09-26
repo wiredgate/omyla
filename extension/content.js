@@ -1,0 +1,70 @@
+(() => {
+  const old = document.getElementById('omyla-overlay-root');
+  if (old) { old.remove(); return; }
+  const host = document.createElement('div'); host.id = 'omyla-overlay-root';
+  host.style.cssText = 'all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none';
+  const shadow = host.attachShadow({ mode: 'closed' });
+  shadow.innerHTML = `<style>
+    *{box-sizing:border-box}canvas{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:auto;touch-action:none;cursor:crosshair}
+    .panel{position:fixed;right:16px;bottom:16px;width:min(370px,calc(100vw - 32px));padding:15px;border:1px solid #455953;border-radius:16px;background:#171e1eee;color:#edf4ee;box-shadow:0 12px 45px #0008;font:13px/1.5 system-ui,sans-serif;pointer-events:auto;backdrop-filter:blur(16px)}
+    .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.head b{font-size:17px;letter-spacing:-.04em}button{cursor:pointer;border:1px solid #5a6b62;border-radius:8px;background:#29352f;color:#edf4ee;padding:7px 10px;font:inherit}button.on{background:#d4f5d9;color:#14241b}button:hover{border-color:#d4f5d9}textarea{width:100%;height:64px;resize:vertical;border:1px solid #56645d;border-radius:8px;background:#101a16;color:#fff;padding:9px;font:inherit}.row{display:flex;gap:6px;margin:8px 0}.row label{margin-left:auto;align-self:center}.row select{background:#29352f;color:#fff;border:1px solid #56645d;border-radius:6px;padding:4px}.preview{min-height:22px;color:#c9eecf;margin:8px 0;overflow-wrap:anywhere}.send{width:100%;background:#d4f5d9;color:#14241b;font-weight:700}
+  </style><canvas></canvas><div class="panel" role="dialog" aria-label="OMYLAの画面指示"><div class="head"><b>OMYLA<span style="color:#b7e7b8">.</span></b><button id="close" aria-label="閉じる">×</button></div><div class="row"><button id="point" class="on">指す</button><button id="draw">描く</button><button id="clear">消す</button><label>最後の線 <select id="kind" disabled><option value="auto">自動</option><option value="circle">丸</option><option value="arrow">矢印</option><option value="line">線</option></select></label></div><div class="preview" id="preview">ページ上をクリックするか、描いて対象を選んでね。</div><textarea id="goal" maxlength="1500" placeholder="ここをどうしたい？"></textarea><button id="send" class="send">OMYLAで確認 ↗</button></div>`;
+  document.documentElement.append(host);
+  const $ = selector => shadow.querySelector(selector);
+  const canvas = $('canvas'), ctx = canvas.getContext('2d');
+  let mode = 'point', marks = [], strokes = [], active = false, stroke = [], override = 'auto';
+  const pos = event => ({ x: Math.max(0, Math.min(1, event.clientX / innerWidth)), y: Math.max(0, Math.min(1, event.clientY / innerHeight)) });
+  const label = node => {
+    if (!node || node.closest('input,textarea,select,[contenteditable],form')) return '';
+    const el = node.closest('h1,h2,h3,p,button,a,li,img,[role="button"]') || node;
+    return (el.getAttribute?.('alt') || el.getAttribute?.('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 160);
+  };
+  const elementAt = p => {
+    canvas.style.pointerEvents = 'none'; host.style.pointerEvents = 'none';
+    const found = document.elementFromPoint(p.x * innerWidth, p.y * innerHeight);
+    host.style.pointerEvents = 'none'; canvas.style.pointerEvents = 'auto';
+    return found?.closest('#omyla-overlay-root') ? null : found;
+  };
+  const targetsIn = box => {
+    const nodes = [...document.querySelectorAll('h1,h2,h3,p,button,a,li,img,[role="button"]')].slice(0, 2000);
+    return [...new Set(nodes.filter(node => !node.closest('form,[contenteditable]')).filter(node => {
+      const r = node.getBoundingClientRect(), cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
+      return r.width > 0 && r.height > 0 && cx >= box.x * innerWidth && cx <= (box.x + box.width) * innerWidth && cy >= box.y * innerHeight && cy <= (box.y + box.height) * innerHeight;
+    }).map(label).filter(Boolean))].slice(0, 4);
+  };
+  const classify = points => {
+    const xs = points.map(p => p.x), ys = points.map(p => p.y);
+    const box = { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+    const distance = (a, b) => Math.hypot((a.x - b.x) * innerWidth, (a.y - b.y) * innerHeight);
+    const diagonal = Math.hypot(box.width * innerWidth, box.height * innerHeight);
+    const length = points.slice(1).reduce((n, p, i) => n + distance(p, points[i]), 0);
+    let kind = 'line', tip = points.at(-1);
+    if (diagonal > 30 && length > diagonal * 1.8 && distance(points[0], tip) < Math.max(25, diagonal * .2)) kind = 'circle';
+    else if (points.length > 5 && diagonal > 35) {
+      let far = 0; for (let i = 1; i < points.length; i++) if (distance(points[0], points[i]) > distance(points[0], points[far])) far = i;
+      const apex = points[far], retreat = distance(apex, tip), barb = distance(apex, points.at(-2));
+      if (far > points.length * .55 && far < points.length - 2 && (retreat > 12 && retreat < diagonal * .45 || retreat < 15 && barb > 12 && barb < diagonal * .45)) { kind = 'arrow'; tip = apex; }
+    }
+    return { kind, box, tip };
+  };
+  function redraw() { const dpr = devicePixelRatio || 1; canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.strokeStyle = '#c8f395'; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; for (const line of [...strokes, stroke]) { if (!line.length) continue; ctx.beginPath(); line.forEach((p, i) => i ? ctx.lineTo(p.x * innerWidth, p.y * innerHeight) : ctx.moveTo(p.x * innerWidth, p.y * innerHeight)); ctx.stroke(); } for (const mark of marks.filter(x => x.kind === 'point')) { ctx.beginPath(); ctx.arc(mark.tip.x * innerWidth, mark.tip.y * innerHeight, 11, 0, Math.PI * 2); ctx.stroke(); } }
+  function refresh() { const latest = marks.at(-1); $('#preview').textContent = latest ? `${{ point:'指した場所',circle:'丸の範囲',arrow:'矢印の先',line:'線の終点' }[latest.kind]}: ${latest.target || '文字のない場所'}${marks.length > 1 ? ` · 他${marks.length - 1}件` : ''}` : 'ページ上をクリックするか、描いて対象を選んでね。'; }
+  function updateLast() { const m = marks.at(-1); if (!m || !strokes.length) return; const shape = classify(strokes.at(-1)); m.kind = override === 'auto' ? shape.kind : override; m.tip = shape.tip; m.box = shape.box; m.target = m.kind === 'circle' ? targetsIn(shape.box).join(' / ') : label(elementAt(shape.tip)); refresh(); }
+  canvas.addEventListener('pointerdown', event => { event.preventDefault(); canvas.setPointerCapture(event.pointerId); if (mode === 'point') { const p = pos(event); marks.push({ kind:'point', target:label(elementAt(p)), tip:p }); marks = marks.slice(-8); refresh(); redraw(); return; } active = true; stroke = [pos(event)]; redraw(); });
+  canvas.addEventListener('pointermove', event => { if (active) { stroke.push(pos(event)); redraw(); } });
+  canvas.addEventListener('pointerup', event => { if (!active) return; active = false; stroke.push(pos(event)); strokes.push(stroke); stroke = []; override = 'auto'; $('#kind').value = 'auto'; $('#kind').disabled = false; marks.push({ kind:'line', target:'', tip:null, box:null }); marks = marks.slice(-8); updateLast(); redraw(); });
+  $('#point').onclick = () => { mode = 'point'; $('#point').classList.add('on'); $('#draw').classList.remove('on'); };
+  $('#draw').onclick = () => { mode = 'draw'; $('#draw').classList.add('on'); $('#point').classList.remove('on'); };
+  $('#clear').onclick = () => { marks = []; strokes = []; $('#kind').disabled = true; redraw(); refresh(); };
+  $('#kind').onchange = event => { override = event.target.value; updateLast(); };
+  $('#close').onclick = () => host.remove();
+  $('#send').onclick = () => {
+    const goal = $('#goal').value.trim();
+    if (!goal) { $('#goal').focus(); return; }
+    const payload = { goal, context: { surface: { kind:'browser-tab', host:location.hostname.slice(0, 120), title:document.title.slice(0, 160) }, targets:[...new Set(marks.map(m => m.target).filter(Boolean))].slice(0, 6), marks:marks.slice(0, 8) } };
+    chrome.runtime.sendMessage({ type:'omyla-handoff', payload }); host.remove();
+  };
+  addEventListener('resize', redraw, { passive:true });
+  addEventListener('scroll', () => { marks = []; strokes = []; $('#kind').disabled = true; redraw(); refresh(); }, { passive:true });
+  redraw();
+})();
