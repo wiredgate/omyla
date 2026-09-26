@@ -1,7 +1,6 @@
 import { classifyStroke } from './gesture.js';
 const $ = id => document.getElementById(id);
 const stage = $('stage'), canvas = $('ink'), ctx = canvas.getContext('2d');
-const crew = ['Kai', 'Mia', 'Emma'];
 let drawing = false, strokes = [], pointer = null, files = [], goals = [], lastOverride = 'auto', handoff = null;
 const toggle = $('presence-toggle'), workspace = $('workspace'), scrim = $('scrim');
 function setOpen(open) { workspace.hidden = !open; scrim.hidden = !open; toggle.setAttribute('aria-expanded', String(open)); if (open) { requestAnimationFrame(resize); $('instruction').focus(); } else toggle.focus(); }
@@ -37,8 +36,8 @@ $('drop').addEventListener('drop', event => { event.preventDefault(); $('drop').
 $('goal-form').onsubmit = async event => {
   event.preventDefault(); const goal = $('instruction').value.trim(); if (!goal) return;
   const submit = $('goal-form').querySelector('.primary'); submit.disabled = true;
-  $('team-list').replaceChildren(...crew.map(name => card(name, '作業中', '画面指示を確認している…')));
-  $('summary').textContent = '';
+  $('team-list').replaceChildren();
+  $('summary').textContent = 'Manager · 依頼を読み取り、担当を決めている…';
   try {
     const response = await fetch('/api/goals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ goal, context: handoff || context() }) });
     const result = await response.json(); if (!response.ok) throw new Error(result.message || `依頼を処理できなかった (${response.status})`);
@@ -47,7 +46,7 @@ $('goal-form').onsubmit = async event => {
   finally { submit.disabled = false; }
 };
 function card(name, status, detail) { const el = document.createElement('div'); el.className = 'agent'; const title = document.createElement('b'), small = document.createElement('small'), p = document.createElement('p'); title.textContent = name; small.textContent = status; p.textContent = detail; el.append(title, small, p); return el; }
-function showGoal(goal) { $('team-list').replaceChildren(...goal.steps.map(step => card(step.name, step.state === 'done' ? '提案' : 'エラー', step.text))); $('summary').textContent = goal.state === 'working' ? 'Manager · 作業中。ページを開き直すと最新状態を確認できる。' : `Manager · ${goal.steps.filter(x => x.state === 'done').length}件の提案が届いた。画面指示: ${goal.context.targets.join(' / ') || '指定なし'}`; }
+function showGoal(goal) { $('team-list').replaceChildren(...goal.steps.map(step => card(step.name, step.state === 'done' ? '提案' : 'エラー', step.text))); const names = goal.plan?.assignments?.map(x => ({ kai: 'Kai', mia: 'Mia', emma: 'Emma' })[x.agentId]).filter(Boolean).join('・') || goal.steps.map(x => x.name).join('・'); $('summary').textContent = goal.state === 'working' ? `Manager · ${names}が検討中。ページを開き直すと最新状態を確認できる。` : `Manager · ${names}に振り分け、${goal.steps.filter(x => x.state === 'done').length}件の提案が届いた。画面指示: ${goal.context.targets.join(' / ') || '指定なし'}`; }
 function showHistory() { const area = $('history'); area.replaceChildren(); for (const goal of goals) { const button = document.createElement('button'); button.type = 'button'; button.textContent = goal.goal.slice(0, 60); button.onclick = () => showGoal(goal); area.append(button); } }
 const clearHistory = document.createElement('button'); clearHistory.type = 'button'; clearHistory.textContent = '履歴を消す'; clearHistory.className = 'clear-history'; $('history').after(clearHistory);
 clearHistory.onclick = async () => { if (!window.confirm('このブラウザの保存済み依頼とAgentの結果を消す？')) return; const response = await fetch('/api/goals', { method: 'DELETE' }); if (!response.ok) { $('summary').textContent = '履歴を削除できなかった。'; return; } goals = []; $('team-list').replaceChildren(); $('summary').textContent = '保存済みの依頼を削除した。'; showHistory(); };
