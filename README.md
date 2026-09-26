@@ -1,6 +1,6 @@
 # OMYLA public preview
 
-Live at https://omyla.uwaaa.com. This is an early web slice of Talk / Point / Draw / Drop, not a desktop overlay or a connected computer assistant.
+The product landing page is at https://omyla.uwaaa.com/. The web app preview lives at https://omyla.uwaaa.com/app/. This is an early slice of Talk / Point / Draw / Drop, not yet a connected computer assistant.
 
 ## What works
 
