@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id);
 const stage = $('stage'), canvas = $('ink'), ctx = canvas.getContext('2d');
 const crew = ['Kai', 'Mia', 'Emma'];
-let drawing = false, strokes = [], pointer = null, files = [];
+let drawing = false, strokes = [], pointer = null, files = [], goals = [];
 const clamp = n => Math.max(0, Math.min(1, n));
 function bounds() { return stage.getBoundingClientRect(); }
 function resize() { const box = bounds(), scale = devicePixelRatio || 1; canvas.width = box.width * scale; canvas.height = box.height * scale; ctx.setTransform(scale, 0, 0, scale, 0, 0); renderInk(); }
@@ -22,15 +22,18 @@ $('goal-form').onsubmit = async event => {
   event.preventDefault(); const goal = $('instruction').value.trim(); if (!goal) return;
   const submit = $('goal-form').querySelector('.primary'); submit.disabled = true;
   $('team-list').replaceChildren(...crew.map(name => card(name, '作業中', '画面指示を確認している…')));
-  $('approval-list').replaceChildren(); $('summary').textContent = '';
+  $('summary').textContent = '';
   try {
     const response = await fetch('/api/goals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ goal, context: context() }) });
     const result = await response.json(); if (!response.ok) throw new Error(result.message || `依頼を処理できなかった (${response.status})`);
-    $('team-list').replaceChildren(...result.steps.map(step => card(step.name, step.state === 'done' ? '提案' : 'エラー', step.text)));
-    $('summary').textContent = `Manager · ${result.steps.filter(x => x.state === 'done').length}件の提案が届いた。画面指示: ${result.context.targets.join(' / ') || '指定なし'}`;
+    goals = [result, ...goals.filter(x => x.id !== result.id)].slice(0, 10); showGoal(result); showHistory();
   } catch (error) { $('team-list').replaceChildren(); $('summary').textContent = error.message; }
   finally { submit.disabled = false; }
 };
 function card(name, status, detail) { const el = document.createElement('div'); el.className = 'agent'; const title = document.createElement('b'), small = document.createElement('small'), p = document.createElement('p'); title.textContent = name; small.textContent = status; p.textContent = detail; el.append(title, small, p); return el; }
+function showGoal(goal) { $('team-list').replaceChildren(...goal.steps.map(step => card(step.name, step.state === 'done' ? '提案' : 'エラー', step.text))); $('summary').textContent = goal.state === 'working' ? 'Manager · 作業中。ページを開き直すと最新状態を確認できる。' : `Manager · ${goal.steps.filter(x => x.state === 'done').length}件の提案が届いた。画面指示: ${goal.context.targets.join(' / ') || '指定なし'}`; }
+function showHistory() { const area = $('history'); area.replaceChildren(); for (const goal of goals) { const button = document.createElement('button'); button.type = 'button'; button.textContent = goal.goal.slice(0, 60); button.onclick = () => showGoal(goal); area.append(button); } }
+async function restore() { try { const response = await fetch('/api/goals'); if (!response.ok) return; goals = (await response.json()).goals || []; showHistory(); if (goals.length) showGoal(goals[0]); } catch {} }
 $('voice').onclick = () => { const Speech = window.SpeechRecognition || window.webkitSpeechRecognition; if (!Speech) return alert('このブラウザは音声入力に対応していない。テキストで依頼できるよ。'); const recognition = new Speech(); recognition.lang = 'ja-JP'; recognition.onresult = event => { $('instruction').value = event.results[0][0].transcript; }; recognition.onerror = () => alert('音声を取得できなかった。テキストで入力してね。'); recognition.start(); };
 new ResizeObserver(resize).observe(stage);
+restore();
