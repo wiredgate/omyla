@@ -4,7 +4,8 @@
   "compatibility_date": "2026-09-26",
   "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
   "ai": { "binding": "AI" },
-  "durable_objects": { "bindings": [{ "name": "QUOTA", "class_name": "Quota" }] },
-  "exports": { "Quota": { "type": "durable-object", "storage": "sqlite" } },
+  "durable_objects": { "bindings": [{ "name": "QUOTA", "class_name": "Quota" }, { "name": "GOALS", "class_name": "GoalSession" }] },
+  "exports": { "Quota": { "type": "durable-object", "storage": "sqlite" }, "GoalSession": { "type": "durable-object", "storage": "sqlite" } },
+  "vars": { "TEXT_MODEL": "@cf/meta/llama-3.1-8b-instruct-fp8-fast" },
   "routes": [{ "pattern": "omyla.uwaaa.com", "custom_domain": true }]
 }
