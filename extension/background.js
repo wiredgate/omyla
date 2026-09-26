@@ -13,5 +13,5 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   if (!payload || typeof payload !== 'object' || typeof payload.goal !== 'string' || payload.goal.length > 1500) return;
   const encoded = encodeURIComponent(JSON.stringify(payload));
   if (encoded.length > 7500) return;
-  chrome.tabs.create({ url: `https://omyla.uwaaa.com/#omyla=${encoded}` });
+  chrome.tabs.create({ url: `https://omyla.uwaaa.com/app/#omyla=${encoded}` });
 });
