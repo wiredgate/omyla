@@ -9,6 +9,7 @@ Live at https://omyla.uwaaa.com. This is an early web slice of Talk / Point / Dr
 - A Cloudflare Worker calls Workers AI for Kai, Mia, and Emma in parallel. Identity prompts are independent of the `TEXT_MODEL` configuration. The Worker limits each IP to five goals and everyone to 30 goals per UTC day using a SQLite Durable Object.
 - A separate session Durable Object keeps the ten most recent goals for this browser. The session is carried by an HttpOnly cookie; it is not an account and does not sync across devices. The UI can delete the saved history.
 - The optional unpacked Chromium extension in `extension/` adds Point / Draw over the currently active web page and hands only selected DOM labels, page hostname/title, and the user's instruction to the public preview for review. See `extension/README.md` for installation and scope.
+- The intended resident UI is a single small button on the page; the action panel and drawing surface appear only while the user opens it. The larger public site remains an explanatory preview.
 - Agent responses are proposals only. The service cannot read email, alter code, browse the computer, publish, or execute tools. There is no simulated approval button.
 
 ## Deployment
