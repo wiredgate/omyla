@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OMYLA — local prototype</title><link rel="stylesheet" href="/style.css"></head>
+<body><main>
+  <header><span class="mark">OMYLA<span class="dot">.</span></span><span class="badge">LOCAL PROTOTYPE</span></header>
+  <section class="stage" id="stage" aria-label="画面の代わりになるデモ領域">
+    <div class="demo-page"><div class="eyebrow">CURRENT SCREEN · DEMO</div><h1>指して、描いて、<br>仕事を任せる。</h1><p>ここは画面指示を試すためのデモ領域。実際のデスクトップ画面はまだ取得しない。</p><div class="demo-card" id="target"><strong>この部分を丸で囲んでみて</strong><span>描いた線は依頼のContextに添えられる</span></div></div>
+    <canvas id="ink" aria-label="画面への描画領域"></canvas>
+  </section>
+  <div class="toolbar"><button id="draw" aria-pressed="false">✎ 描く</button><button id="clear">消す</button><span id="hint">クリックして指すこともできる</span></div>
+  <section class="presence"><div class="heading"><div class="orb"></div><div><strong>What do you want to do?</strong><small>Talk · Point · Draw · Drop</small></div></div><form id="goal-form"><textarea id="instruction" maxlength="4000" placeholder="例：Kaiはエラーを調べて。Miaはデザインを見て。Emmaはメール返信案を考えて。" required></textarea><div class="actions"><button type="button" id="voice">🎙 話す</button><button type="submit" class="primary">みんなにお願いする ↗</button></div></form><p class="caveat">デモ用Agentが動く。メール・コード・公開環境には接続していない。</p></section>
+  <section class="team"><h2>YOUR CREW</h2><div id="team-list" class="team-list"></div><div id="approval-list"></div><div id="summary"></div></section>
+</main><script type="module" src="/app.js"></script></body></html>
