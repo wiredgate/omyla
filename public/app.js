@@ -1,20 +1,24 @@
+import { classifyStroke } from './gesture.js';
 const $ = id => document.getElementById(id);
 const stage = $('stage'), canvas = $('ink'), ctx = canvas.getContext('2d');
 const crew = ['Kai', 'Mia', 'Emma'];
-let drawing = false, strokes = [], pointer = null, files = [], goals = [];
+let drawing = false, strokes = [], pointer = null, files = [], goals = [], lastOverride = 'auto';
 const clamp = n => Math.max(0, Math.min(1, n));
 function bounds() { return stage.getBoundingClientRect(); }
 function resize() { const box = bounds(), scale = devicePixelRatio || 1; canvas.width = box.width * scale; canvas.height = box.height * scale; ctx.setTransform(scale, 0, 0, scale, 0, 0); renderInk(); }
 function renderInk() { const box = bounds(); ctx.clearRect(0, 0, box.width, box.height); ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#e8f7a4'; for (const stroke of strokes) { ctx.beginPath(); stroke.forEach((p, i) => i ? ctx.lineTo(p.x * box.width, p.y * box.height) : ctx.moveTo(p.x * box.width, p.y * box.height)); ctx.stroke(); } if (pointer) { ctx.beginPath(); ctx.arc(pointer.x * box.width, pointer.y * box.height, 10, 0, Math.PI * 2); ctx.stroke(); } }
 function point(event) { const box = bounds(); return { x: clamp((event.clientX - box.left) / box.width), y: clamp((event.clientY - box.top) / box.height) }; }
 function targetAt(p) { const box = bounds(); canvas.style.pointerEvents = 'none'; const node = document.elementFromPoint(box.left + p.x * box.width, box.top + p.y * box.height); canvas.style.pointerEvents = ''; return node?.closest('.demo-page h1, .demo-page p, .demo-card, .eyebrow')?.textContent.trim().replace(/\s+/g, ' ').slice(0, 180) || ''; }
-function context() { const marks = []; if (pointer) marks.push({ kind: 'point', target: targetAt(pointer) }); for (const stroke of strokes.slice(0, 10)) { if (!stroke.length) continue; const minX = Math.min(...stroke.map(p => p.x)), maxX = Math.max(...stroke.map(p => p.x)), minY = Math.min(...stroke.map(p => p.y)), maxY = Math.max(...stroke.map(p => p.y)); marks.push({ kind: stroke.length > 12 && Math.hypot(maxX - minX, maxY - minY) > .1 ? 'drawn region' : 'drawn line', target: targetAt({ x: (minX + maxX) / 2, y: (minY + maxY) / 2 }) }); } return { targets: [...new Set(marks.map(x => x.target).filter(Boolean))], marks, files }; }
+function targetsInBox(region) { const box = bounds(); return [...stage.querySelectorAll('.demo-page h1, .demo-page p, .demo-card, .eyebrow')].filter(node => { const r = node.getBoundingClientRect(); const cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2; return cx >= box.left + region.x * box.width && cx <= box.left + (region.x + region.width) * box.width && cy >= box.top + region.y * box.height && cy <= box.top + (region.y + region.height) * box.height; }).map(node => node.textContent.trim().replace(/\s+/g, ' ').slice(0, 180)).slice(0, 4); }
+function context() { const marks = []; if (pointer) marks.push({ kind: 'point', target: targetAt(pointer), position: pointer }); const box = bounds(); for (const [i, stroke] of strokes.slice(0, 10).entries()) { const geometry = classifyStroke(stroke, { width: box.width, height: box.height }, i === strokes.length - 1 ? lastOverride : 'auto'); if (!geometry) continue; const labels = geometry.kind === 'circle' ? targetsInBox(geometry.box) : [targetAt(geometry.tip)].filter(Boolean); marks.push({ kind: geometry.kind, target: labels.join(' / '), box: geometry.box, tip: geometry.tip }); } return { targets: [...new Set(marks.map(x => x.target).filter(Boolean))], marks, files }; }
+function updateSelection() { const marks = context().marks; $('selection').textContent = marks.length ? marks.map(x => `${{ point: '指した場所', circle: '丸で囲んだ範囲', arrow: '矢印の先', line: '線の終点' }[x.kind]}: ${x.target || '対象要素なし'}`).join('　·　') : '画面を指すか描くと、AIに渡す対象がここに表示される。'; }
 $('draw').onclick = () => { const on = canvas.classList.toggle('active'); $('draw').setAttribute('aria-pressed', String(on)); $('hint').textContent = on ? '画面上に丸や矢印を描ける' : 'クリックして指すこともできる'; };
-$('clear').onclick = () => { strokes = []; pointer = null; renderInk(); };
-canvas.addEventListener('pointerdown', event => { drawing = true; canvas.setPointerCapture(event.pointerId); strokes.push([point(event)]); renderInk(); });
+$('clear').onclick = () => { strokes = []; pointer = null; $('kind-label').hidden = true; renderInk(); updateSelection(); };
+canvas.addEventListener('pointerdown', event => { drawing = true; lastOverride = 'auto'; $('mark-kind').value = 'auto'; $('kind-label').hidden = false; canvas.setPointerCapture(event.pointerId); strokes.push([point(event)]); renderInk(); });
 canvas.addEventListener('pointermove', event => { if (drawing) { strokes.at(-1).push(point(event)); renderInk(); } });
-canvas.addEventListener('pointerup', () => { drawing = false; });
-stage.addEventListener('click', event => { if (canvas.classList.contains('active')) return; pointer = point(event); renderInk(); });
+canvas.addEventListener('pointerup', () => { drawing = false; updateSelection(); });
+stage.addEventListener('click', event => { if (canvas.classList.contains('active')) return; pointer = point(event); renderInk(); updateSelection(); });
+$('mark-kind').onchange = event => { lastOverride = event.target.value; updateSelection(); };
 for (const name of ['dragenter', 'dragover']) $('drop').addEventListener(name, event => { event.preventDefault(); $('drop').classList.add('dropping'); });
 $('drop').addEventListener('dragleave', () => $('drop').classList.remove('dropping'));
 $('drop').addEventListener('drop', event => { event.preventDefault(); $('drop').classList.remove('dropping'); files = [...event.dataTransfer.files].slice(0, 5).map(({ name, type }) => ({ name, type })); $('drop').textContent = files.length ? `添付情報: ${files.map(f => f.name).join('、')}（内容は送信しない）` : 'ファイルをドロップしてね'; });
