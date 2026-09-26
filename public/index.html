@@ -1,12 +1,13 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OMYLA — Public Preview</title><link rel="stylesheet" href="/style.css"></head>
-<body><main>
-  <header><span class="mark">OMYLA<span class="dot">.</span></span><span class="badge">PUBLIC PREVIEW</span></header>
-  <section class="stage" id="stage" aria-label="画面の代わりになるデモ領域">
-    <div class="demo-page"><div class="eyebrow">CURRENT SCREEN · DEMO</div><h1>指して、描いて、<br>仕事を任せる。</h1><p>ここは画面指示を試すためのデモ領域。実際のデスクトップ画面はまだ取得しない。</p><div class="demo-card" id="target"><strong>この部分を丸で囲んでみて</strong><span>丸で囲んだ要素は依頼のContextとして送られる</span></div></div>
-    <canvas id="ink" aria-label="画面への描画領域"></canvas>
-  </section>
-  <div class="toolbar"><button id="draw" aria-pressed="false">✎ 描く</button><button id="clear">消す</button><label id="kind-label" hidden>最後の線 <select id="mark-kind"><option value="auto">自動判定</option><option value="circle">丸</option><option value="arrow">矢印</option><option value="line">線</option></select></label><span id="hint">クリックして指すこともできる</span></div>
-  <section class="presence"><div class="heading"><div class="orb"></div><div><strong>What do you want to do?</strong><small>Talk · Point · Draw · Drop</small></div></div><form id="goal-form"><textarea id="instruction" maxlength="1500" placeholder="例：丸で囲んだ部分をもっと分かりやすくして" required></textarea><div class="actions"><button type="button" id="voice">🎙 話す</button><button type="submit" class="primary">みんなにお願いする ↗</button></div></form><p id="selection" class="selection" aria-live="polite">画面を指すか描くと、AIに渡す対象がここに表示される。</p><div id="drop" class="caveat">ファイルをここへドロップすると名前と種類を依頼に添えられる。内容は送信しない。</div><p class="caveat">開いているWebページを指すには <a href="https://github.com/wiredgate/omyla/tree/main/extension" target="_blank" rel="noopener noreferrer">ブラウザ拡張の導入案内</a></p><p class="caveat">公開プレビュー。入力と画面指示はAIに送られる。秘密情報は入力しないでね。Agentは提案のみ行い、メール・コード・公開環境は操作しない。1人5回・全体30回/日の上限あり。</p></section>
-  <section class="team"><h2>YOUR CREW</h2><div id="team-list" class="team-list"></div><div id="summary"></div><div id="history" class="history"></div></section>
-</main><script type="module" src="/app.js"></script></body></html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="OMYLAは、話す・指す・描く・渡すだけで仕事を頼める、あなたのAIクルー。"><title>OMYLA — あなたのAIクルー</title><link rel="stylesheet" href="/landing.css"></head>
+<body><div class="page">
+  <header class="top"><a class="wordmark" href="/" aria-label="OMYLA トップ">OMYLA<span>.</span></a><a class="enter small" href="/app/">アプリを試す <span aria-hidden="true">↗</span></a></header>
+  <main>
+    <section class="hero" aria-labelledby="hero-title"><div class="hero-copy"><span class="eyebrow"><span class="pulse"></span> PERSONAL AI CREW · BY UWAAA</span><h1 id="hero-title">あなたの「これ」が、<br><em>チームの仕事になる。</em></h1><p class="lead">話す。指す。描く。渡す。<br>意図を伝えたら、名前のあるAIたちが動き出す。</p><div class="cta-row"><a class="enter primary" href="/app/">OMYLAを試す <span aria-hidden="true">↗</span></a><a class="quiet" href="#how">しくみを見る <span aria-hidden="true">↓</span></a></div><p class="preview-note">現在は公開プレビュー。アプリ内の画面指示とAIの提案を体験できる。</p></div>
+      <div class="visual" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="core"><span>O</span></div><div class="agent agent-kai"><i></i><span>KAI</span><small>BUILD</small></div><div class="agent agent-mia"><i></i><span>MIA</span><small>DESIGN</small></div><div class="agent agent-emma"><i></i><span>EMMA</span><small>ORGANIZE</small></div></div>
+    </section>
+    <section class="way" id="how"><div class="section-head"><span class="eyebrow">A MORE NATURAL WAY TO WORK</span><h2>説明するより、<br>伝わる方法で。</h2><p>チャット欄に全部を書き起こす必要はない。あなたが普段しているように、対象を示して頼む。</p></div><div class="ways"><div><b>01 / TALK</b><h3>話す</h3><p>やりたいことをそのまま伝える。</p></div><div><b>02 / POINT</b><h3>指す</h3><p>「ここ」を指して、対象を明確にする。</p></div><div><b>03 / DRAW</b><h3>描く</h3><p>丸や矢印で、意図を重ねる。</p></div><div><b>04 / DROP</b><h3>渡す</h3><p>資料を手渡すように添える。</p></div></div></section>
+    <section class="presence"><div class="presence-orb" aria-hidden="true">O</div><div><span class="eyebrow">ONE SMALL PRESENCE</span><h2>必要なときだけ、そこにいる。</h2><p>目指す常駐UIは、画面上の小さなボタンひとつ。開けばクルーに話しかけられ、閉じれば作業に戻れる。</p></div></section>
+    <section class="now"><span class="eyebrow">WHERE WE ARE</span><h2>いま、試せること。</h2><p>Webアプリではデモ画面を指したり描いたりして、Kai・Mia・Emmaから提案を受け取れる。ブラウザ拡張は、選んだWebページの要素を渡す初期版。Desktop版は小さな常駐ボタンの土台まで。実際のデスクトップ画面取得やPC操作は、まだ開発中。</p><a class="enter primary" href="/app/">公開プレビューを開く <span aria-hidden="true">↗</span></a></section>
+  </main><footer><span class="wordmark">OMYLA<span>.</span></span><span>AN AI CREW FOR WHAT COMES NEXT.</span><a href="https://uwaaa.com/" target="_blank" rel="noopener noreferrer">BY UWAAA ↗</a></footer>
+</div></body></html>
