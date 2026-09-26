@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "OMYLA — Point & Draw",
+  "version": "0.1.0",
+  "description": "Choose part of the current page and bring it into OMYLA.",
+  "permissions": ["activeTab", "scripting"],
+  "action": { "default_title": "OMYLAでこのページを指す" },
+  "background": { "service_worker": "background.js" }
+}
