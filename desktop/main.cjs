@@ -46,7 +46,7 @@ ipcMain.handle('overlay:open-goal', async (event, value) => {
   const goal = value.trim();
   if (!goal || goal.length > 1500) return false;
   const payload = { goal, context: { surface: { kind: 'desktop', title: 'OMYLA Desktop' }, targets: [], marks: [] } };
-  const url = `https://omyla.uwaaa.com/#omyla=${encodeURIComponent(JSON.stringify(payload))}`;
+  const url = `https://omyla.uwaaa.com/app/#omyla=${encodeURIComponent(JSON.stringify(payload))}`;
   await shell.openExternal(url);
   if (open) { open = false; win.setBounds(place(compact)); }
   return true;
