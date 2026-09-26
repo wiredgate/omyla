@@ -43,6 +43,7 @@ function normalizeContext(value) {
   if (!value || typeof value !== 'object') return {};
   const surface = value.surface?.kind === 'browser-tab'
     ? { kind: 'browser-tab', host: String(value.surface.host || '').slice(0, 120), title: String(value.surface.title || '').slice(0, 160) }
+    : value.surface?.kind === 'desktop' ? { kind: 'desktop', title: 'OMYLA Desktop' }
     : { kind: 'demo-page', title: 'OMYLA demo page' };
   const targets = Array.isArray(value.targets) ? value.targets.slice(0, 6).map(x => String(x).slice(0, 180)) : [];
   const coordinate = n => Number.isFinite(Number(n)) ? Math.max(0, Math.min(1, Number(n))) : 0;
