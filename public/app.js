@@ -20,7 +20,7 @@ $('drop').addEventListener('dragleave', () => $('drop').classList.remove('droppi
 $('drop').addEventListener('drop', event => { event.preventDefault(); $('drop').classList.remove('dropping'); files = [...event.dataTransfer.files].slice(0, 5).map(({ name, type }) => ({ name, type })); $('drop').textContent = files.length ? `添付情報: ${files.map(f => f.name).join('、')}（内容は送信しない）` : 'ファイルをドロップしてね'; });
 $('goal-form').onsubmit = async event => {
   event.preventDefault(); const goal = $('instruction').value.trim(); if (!goal) return;
-  const submit = $('goal-form button[type=submit]'); submit.disabled = true;
+  const submit = $('goal-form').querySelector('.primary'); submit.disabled = true;
   $('team-list').replaceChildren(...crew.map(name => card(name, '作業中', '画面指示を確認している…')));
   $('approval-list').replaceChildren(); $('summary').textContent = '';
   try {
