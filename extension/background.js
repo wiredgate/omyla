@@ -1,7 +1,7 @@
 chrome.action.onClicked.addListener(async tab => {
-  if (!tab.id || !/^https?:\/\//.test(tab.url || '')) return;
+  if (!tab.id) return;
   try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+    await chrome.tabs.sendMessage(tab.id, { type: 'omyla-toggle' });
   } catch (error) {
     console.warn('OMYLA could not open on this tab:', error);
   }
