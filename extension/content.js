@@ -1,6 +1,5 @@
 (() => {
-  const old = document.getElementById('omyla-overlay-root');
-  if (old) { old.remove(); return; }
+  if (document.getElementById('omyla-overlay-root')) return;
   const host = document.createElement('div'); host.id = 'omyla-overlay-root';
   host.style.cssText = 'all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none';
   const shadow = host.attachShadow({ mode: 'closed' });
@@ -16,6 +15,7 @@
   let mode = 'point', marks = [], strokes = [], active = false, stroke = [], override = 'auto';
   function setOpen(open) { host.classList.toggle('open', open); $('#panel').hidden = !open; $('#launcher').setAttribute('aria-expanded', String(open)); $('#launcher').setAttribute('aria-label', open ? 'OMYLAを閉じる' : 'OMYLAを開く'); if (open) redraw(); }
   $('#launcher').onclick = () => setOpen(!host.classList.contains('open'));
+  chrome.runtime.onMessage.addListener(message => { if (message?.type === 'omyla-toggle') setOpen(!host.classList.contains('open')); });
   $('#close').onclick = () => setOpen(false);
   shadow.addEventListener('keydown', event => { if (event.key === 'Escape') { setOpen(false); $('#launcher').focus(); } });
   const pos = event => ({ x: Math.max(0, Math.min(1, event.clientX / innerWidth)), y: Math.max(0, Math.min(1, event.clientY / innerHeight)) });
