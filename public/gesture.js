@@ -16,6 +16,10 @@ export function classifyStroke(points, size, override = 'auto') {
     const apex = px[farthest], shaft = { x: apex.x - start.x, y: apex.y - start.y }, tail = { x: end.x - apex.x, y: end.y - apex.y };
     const retreat = Math.hypot(tail.x, tail.y);
     if (farthest > px.length * .55 && farthest < px.length - 2 && retreat > 12 && retreat < diagonal * .45 && shaft.x * tail.x + shaft.y * tail.y < -diagonal * retreat * .2) { kind = 'arrow'; tip = apex; }
+    else if (farthest > px.length * .55 && farthest < px.length - 2 && retreat < 15) {
+      const barb = px.at(-2), barbLength = Math.hypot(barb.x - apex.x, barb.y - apex.y);
+      if (barbLength > 12 && barbLength < diagonal * .45) { kind = 'arrow'; tip = apex; }
+    }
   }
   if (override !== 'auto') kind = override;
   return { kind, box: { x: minX / size.width, y: minY / size.height, width: (maxX - minX) / size.width, height: (maxY - minY) / size.height }, tip: { x: tip.x / size.width, y: tip.y / size.height } };
