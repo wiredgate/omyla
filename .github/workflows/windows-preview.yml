@@ -1,0 +1,41 @@
+name: Build Windows Presence Preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - desktop/**
+      - .github/workflows/windows-preview.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: omyla-windows-preview
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
+      - name: Package portable Windows app
+        working-directory: desktop
+        run: npx --yes @electron/packager@20.0.0 . OMYLA --platform=win32 --arch=x64 --out=../dist --overwrite --asar
+      - name: Compress portable app
+        shell: pwsh
+        run: Compress-Archive -Path dist/OMYLA-win32-x64 -DestinationPath OMYLA-Windows-Preview.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OMYLA-Windows-Preview
+          path: OMYLA-Windows-Preview.zip
+          if-no-files-found: error
+          retention-days: 14
