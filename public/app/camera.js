@@ -3,7 +3,7 @@ import { classifyStroke } from './gesture.js';
 const $ = id => document.getElementById(id);
 const modal = $('camera-mode'), frame = $('camera-frame'), video = $('camera-video'), photo = $('camera-photo');
 const ink = $('camera-ink'), context = ink.getContext('2d');
-let stream = null, image = '', strokes = [], stroke = null, steps = [], index = 0, generation = 0;
+let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], index = 0, generation = 0;
 const status = message => { $('camera-status').textContent = message; };
 const clamp = n => Math.max(0, Math.min(1, n));
 
@@ -40,6 +40,61 @@ async function openCamera() {
     status('映像を見て撮影してね。AIに送るのは、撮影後に確認した画像だけ。');
   } catch { if (token === generation) status('カメラを使えなかった。ブラウザの権限設定を確認してね。'); }
 }
+function encodeSnapshot(source, sourceWidth, sourceHeight) {
+  let width = Math.min(1024, sourceWidth);
+  let data = '';
+  while (width >= 320) {
+    const snapshot = document.createElement('canvas');
+    snapshot.width = width; snapshot.height = Math.max(1, Math.round(width * sourceHeight / sourceWidth));
+    snapshot.getContext('2d').drawImage(source, 0, 0, snapshot.width, snapshot.height);
+    data = snapshot.toDataURL('image/jpeg', .68);
+    if (data.length < 900000) return data;
+    width = Math.floor(width * .75);
+  }
+  return data.length < 980000 ? data : '';
+}
+function showSnapshot(data, ratio, kind) {
+  sourceKind = kind;
+  image = data; stopStream(); clearGuide(); strokes = []; stroke = null;
+  frame.style.setProperty('--camera-ratio', String(ratio));
+  video.hidden = true; photo.src = image; photo.hidden = false;
+  $('camera-capture').hidden = true; $('camera-retake').hidden = false;
+  $('camera-clear').hidden = false; $('camera-ask').hidden = false;
+  ink.hidden = false; requestAnimationFrame(resizeInk);
+}
+function openImport() {
+  ++generation; stopStream(); clearGuide();
+  image = ''; strokes = []; stroke = null;
+  video.hidden = true; photo.hidden = true; photo.removeAttribute('src');
+  ink.hidden = true; $('camera-capture').hidden = true; $('camera-retake').hidden = true;
+  $('camera-clear').hidden = true; $('camera-ask').hidden = true;
+  modal.hidden = false;
+  status('選んだ画像を確認し、指すか描いてからAIへ送れるよ。');
+  $('screen-file').click();
+}
+$('screen-open').onclick = openImport;
+$('screen-pick').onclick = () => $('screen-file').click();
+$('screen-file').onchange = async event => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 8000000) {
+    status('JPEG・PNG・WebPの画像を8MB以内で選んでね。'); return;
+  }
+  const token = ++generation;
+  stopStream(); status('画像を準備しているよ…');
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+    if (token !== generation || modal.hidden) return;
+    if (bitmap.width * bitmap.height > 64000000) { status('画像の解像度が高すぎるよ。'); return; }
+    const data = encodeSnapshot(bitmap, bitmap.width, bitmap.height);
+    if (!data) { status('画像を小さくできなかった。別の画像を選んでね。'); return; }
+    showSnapshot(data, bitmap.width / bitmap.height, 'screen-upload');
+    status('画像を確認してね。タップで指すか、指で丸や線を描いて質問できる。');
+  } catch { if (token === generation) status('画像を読み込めなかった。別の画像を選んでね。'); }
+  finally { bitmap?.close?.(); }
+};
 function resizeInk() {
   const rect = ink.getBoundingClientRect(), dpr = devicePixelRatio || 1;
   ink.width = Math.round(rect.width * dpr); ink.height = Math.round(rect.height * dpr);
@@ -88,14 +143,9 @@ $('camera-retake').onclick = openCamera;
 $('camera-clear').onclick = () => { strokes = []; stroke = null; clearGuide(); drawInk(); };
 $('camera-capture').onclick = () => {
   if (!stream || !video.videoWidth) return;
-  const width = Math.min(1024, video.videoWidth), height = Math.round(width * video.videoHeight / video.videoWidth);
-  const snapshot = document.createElement('canvas'); snapshot.width = width; snapshot.height = height;
-  snapshot.getContext('2d').drawImage(video, 0, 0, width, height);
-  image = snapshot.toDataURL('image/jpeg', .68);
-  stopStream(); video.hidden = true; photo.src = image; photo.hidden = false;
-  $('camera-capture').hidden = true; $('camera-retake').hidden = false;
-  $('camera-clear').hidden = false; $('camera-ask').hidden = false;
-  ink.hidden = false; requestAnimationFrame(resizeInk);
+  const data = encodeSnapshot(video, video.videoWidth, video.videoHeight);
+  if (!data) { status('画像を小さくできなかった。撮り直してね。'); return; }
+  showSnapshot(data, video.videoWidth / video.videoHeight, 'camera');
   status('画像を確認してね。タップで指すか、指で丸や線を描いて質問できる。');
 };
 ink.addEventListener('pointerdown', event => {
@@ -125,7 +175,7 @@ $('camera-ask').onclick = async () => {
   button.disabled = true; clearGuide(); status('画像を見て案内を考えているよ…');
   try {
     const response = await fetch('/api/guide', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, image, marks: marks(), surface: 'camera' }), signal: AbortSignal.timeout(60000) });
+      body: JSON.stringify({ goal, image, marks: marks(), surface: sourceKind }), signal: AbortSignal.timeout(60000) });
     const result = await response.json();
     if (token !== generation || modal.hidden) return;
     if (!response.ok) { status(result.message || '画面を読み取れなかった。'); return; }
