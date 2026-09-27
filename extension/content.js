@@ -9,7 +9,7 @@
     .panel{position:fixed;right:16px;bottom:76px;width:min(370px,calc(100vw - 32px));padding:15px;border:1px solid #455953;border-radius:16px;background:#171e1eee;color:#edf4ee;box-shadow:0 12px 45px #0008;font:13px/1.5 system-ui,sans-serif;pointer-events:auto;backdrop-filter:blur(16px)}.panel[hidden]{display:none}
     .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.head b{font-size:17px;letter-spacing:-.04em}button{cursor:pointer;border:1px solid #5a6b62;border-radius:8px;background:#29352f;color:#edf4ee;padding:7px 10px;font:inherit}button.on{background:#d4f5d9;color:#14241b}button:hover{border-color:#d4f5d9}textarea{width:100%;height:64px;resize:vertical;border:1px solid #56645d;border-radius:8px;background:#101a16;color:#fff;padding:9px;font:inherit}.row{display:flex;gap:6px;margin:8px 0}.row label{margin-left:auto;align-self:center}.row select{background:#29352f;color:#fff;border:1px solid #56645d;border-radius:6px;padding:4px}.preview{min-height:22px;color:#c9eecf;margin:8px 0;overflow-wrap:anywhere}.send{width:100%;background:#d4f5d9;color:#14241b;font-weight:700}
     .guide-ring{position:fixed;width:34px;height:34px;border:3px solid #c8f395;border-radius:50%;box-shadow:0 0 0 5px #c8f39555,0 0 18px #203f1d;transform:translate(-50%,-50%);pointer-events:none}.guide-ring[hidden],.guide-card[hidden]{display:none}.guide-card{position:fixed;width:min(330px,calc(100vw - 24px));max-height:min(310px,55vh);overflow:auto;padding:14px;border:1px solid #b5eabc;border-radius:14px;background:#19251ff5;color:#f2fff1;box-shadow:0 12px 35px #000a;font:13px/1.5 system-ui,sans-serif;pointer-events:auto}.guide-card p{white-space:pre-wrap;overflow-wrap:anywhere}.guide-actions{display:flex;gap:8px;justify-content:flex-end}.guide-actions button{background:#d4f5d9;color:#14241b}
-  </style><canvas></canvas><button class="launcher" id="launcher" aria-label="OMYLAを開く" aria-expanded="false">O</button><div class="panel" id="panel" role="dialog" aria-label="OMYLAの画面指示" hidden><div class="head"><b>OMYLA<span style="color:#b7e7b8">.</span></b><button id="close" aria-label="閉じる">×</button></div><div class="row"><button id="point" class="on">指す</button><button id="draw">描く</button><button id="clear">消す</button><label>最後の線 <select id="kind" disabled><option value="auto">自動</option><option value="circle">丸</option><option value="arrow">矢印</option><option value="line">線</option></select></label></div><div class="preview" id="preview">ページ上をクリックするか、描いて対象を選んでね。</div><textarea id="goal" maxlength="1500" placeholder="ここをどうしたい？"></textarea><button id="send" class="send">このページで教えて</button><button id="handoff" style="margin-top:8px;width:100%">詳細を開く ↗</button></div><div id="guide-ring" class="guide-ring" hidden></div><div id="guide-card" class="guide-card" role="status" hidden><b id="guide-heading"></b><p id="guide-text"></p><div class="guide-actions"><button id="guide-next">次へ</button><button id="guide-stop">閉じる</button></div></div>`;
+  </style><canvas></canvas><button class="launcher" id="launcher" aria-label="OMYLAを開く" aria-expanded="false">O</button><div class="panel" id="panel" role="dialog" aria-label="OMYLAの画面指示" hidden><div class="head"><b>OMYLA<span style="color:#b7e7b8">.</span></b><button id="close" aria-label="閉じる">×</button></div><div class="row"><button id="point" class="on">指す</button><button id="draw">描く</button><button id="clear">消す</button><label>最後の線 <select id="kind" disabled><option value="auto">自動</option><option value="circle">丸</option><option value="arrow">矢印</option><option value="line">線</option></select></label></div><div class="preview" id="preview">ページ上をクリックするか、描いて対象を選んでね。</div><textarea id="goal" maxlength="1500" placeholder="ここをどうしたい？"></textarea><button id="send" class="send">このページで教えて</button><button id="handoff" style="margin-top:8px;width:100%">詳細を開く ↗</button></div><div id="guide-ring" class="guide-ring" hidden></div><div id="guide-card" class="guide-card" role="status" hidden><b id="guide-heading"></b><p id="guide-text"></p><div class="guide-actions"><button id="guide-speak" aria-label="この手順を読み上げる">🔊</button><button id="guide-prev">戻る</button><button id="guide-next">次へ</button><button id="guide-stop">閉じる</button></div></div>`;
   document.documentElement.append(host);
   const $ = selector => shadow.querySelector(selector);
   const canvas = $('canvas'), ctx = canvas.getContext('2d');
@@ -70,13 +70,14 @@
     if (!goal) { $('#goal').focus(); return null; }
     return { goal, context: { surface: { kind:'browser-tab', host:location.hostname.slice(0, 120), title:document.title.slice(0, 160) }, targets:[...new Set(marks.map(m => m.target).filter(Boolean))].slice(0, 6), marks:marks.slice(0, 8) } };
   }
-  function stopGuide() { guide = []; $('#guide-ring').hidden = true; $('#guide-card').hidden = true; }
+  function stopGuide() { speechSynthesis.cancel(); guide = []; $('#guide-ring').hidden = true; $('#guide-card').hidden = true; }
   function showGuide() {
     const step = guide[guideIndex], mark = guideMarks.at(-1);
     if (!step) return stopGuide();
     $('#guide-heading').textContent = step.name + ' · ' + (guideIndex + 1) + '/' + guide.length;
     $('#guide-text').textContent = step.text;
     $('#guide-next').textContent = guideIndex === guide.length - 1 ? '完了' : '次へ';
+    $('#guide-prev').disabled = guideIndex === 0;
     const tip = mark?.tip || (mark?.box && { x: mark.box.x + mark.box.width / 2, y: mark.box.y + mark.box.height / 2 });
     $('#guide-ring').hidden = !tip;
     if (tip) { $('#guide-ring').style.left = (tip.x * innerWidth) + 'px'; $('#guide-ring').style.top = (tip.y * innerHeight) + 'px'; }
@@ -84,7 +85,15 @@
     $('#guide-card').style.top = Math.max(12, Math.min(innerHeight - 320, (tip?.y || .2) * innerHeight + 24)) + 'px';
     $('#guide-card').hidden = false;
   }
-  $('#guide-next').onclick = () => { if (++guideIndex < guide.length) showGuide(); else stopGuide(); };
+  $('#guide-next').onclick = () => { speechSynthesis.cancel(); if (++guideIndex < guide.length) showGuide(); else stopGuide(); };
+  $('#guide-prev').onclick = () => { if (guideIndex > 0) { speechSynthesis.cancel(); --guideIndex; showGuide(); } };
+  $('#guide-speak').onclick = () => {
+    const step = guide[guideIndex]; if (!step || !('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(step.text);
+    utterance.lang = 'ja-JP'; utterance.rate = 1;
+    speechSynthesis.speak(utterance);
+  };
   $('#guide-stop').onclick = stopGuide;
   $('#send').onclick = async () => {
     const data = payload(); if (!data) return;

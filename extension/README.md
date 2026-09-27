@@ -7,7 +7,7 @@ This unpacked Manifest V3 extension is a small in-page assistant connected to th
 1. Download the repository ZIP from GitHub and extract it.
 2. Open `chrome://extensions` in Chrome or Edge, enable Developer mode, and choose **Load unpacked**.
 3. Select the extracted `extension/` folder. Pin the OMYLA extension if useful.
-4. Open or reload a normal `http://` or `https://` page. A single small OMYLA button appears at the bottom right. Press it to point, draw, or give an instruction, then choose **このページで教えて**. Kai, Mia, or Emma respond in a small card directly on the current page, with a ring around the selected point. **詳細を開く** sends the selected context to `omyla.uwaaa.com/app/` for the longer preview. The toolbar icon also opens or closes the panel.
+4. Open or reload a normal `http://` or `https://` page. A single small OMYLA button appears at the bottom right. Press it to point, draw, or give an instruction, then choose **このページで教えて**. Kai, Mia, or Emma respond with short, sequential guidance cards directly on the current page, with a ring around the selected point. Use Back/Next to move through the steps or the speaker button to read the current step aloud. The agent steps are suggestions; they do not automatically operate the page. **詳細を開く** sends the selected context to `omyla.uwaaa.com/app/` for the longer preview. The toolbar icon also opens or closes the panel.
 
 The resting page UI is one button. The temporary controls close with ×, Escape, or the same button; the site is otherwise clickable as usual.
 
