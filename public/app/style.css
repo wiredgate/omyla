@@ -18,3 +18,25 @@ body{min-height:100vh;background:radial-gradient(circle at 95% 95%,#20352b 0,tra
 @media(max-width:650px){.camera-mode{padding:14px 12px 36px}.camera-frame{width:min(100%,calc(58vh * var(--camera-ratio,1.333)))}}
 
 .camera-tools{flex-wrap:wrap}@media(max-width:650px){.toolbar{flex-wrap:wrap}.toolbar button{font-size:12px;padding:8px 9px}}
+
+/* Presence preview: only controls are painted; the underlying canvas stays visible. */
+:root,html,body{background:transparent!important;color:#203027}
+.scrim{background:transparent;pointer-events:none}
+#workspace{max-width:520px;margin-left:auto;margin-right:16px}
+#workspace header{color:#203027}
+.stage{background:transparent;border:1px dashed #8ca796}
+.demo-page{color:#203027}
+.demo-page p,.demo-card span{color:#3b5949}
+.demo-card{background:#ecf8ef9c;border-color:#9dbca7}
+.presence,.team{background:#eff8f0bd;border:1px solid #a6c0ae;color:#203027;backdrop-filter:blur(12px);box-shadow:0 12px 36px #172a1c20}
+.agent{border-color:#aec7b4}
+.agent small,.agent p,#summary,.caveat,.badge,.eyebrow,h2{color:#385b47}
+textarea{background:#ffffffdc;color:#203027;border-color:#9dbca7}
+button:not(.presence-toggle):not(.primary){background:#e9f2ebdf;color:#21382b;border-color:#9bb5a1}
+.guide-card{background:#eef9f0ee;color:#203027;border-color:#93b699}
+.guide-card strong{color:#31583a}
+.camera-mode{background:transparent;color:#203027;backdrop-filter:none}
+.camera-mode header,.camera-mode header small,.camera-mode #camera-status{color:#203027}
+.camera-frame{border-color:#839e8a}
+.camera-guidance{background:#eaf6edeb;color:#203027}
+@media(max-width:650px){#workspace{max-width:none;margin:0 auto}.presence,.team{padding:16px}}
