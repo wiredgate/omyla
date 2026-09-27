@@ -2,7 +2,7 @@
 
 ## Current state
 
-The public preview does not charge users. Each Goal record stores the selected agents, model identity, provider-reported token counts where available, a versioned rate card, the estimated cost cap for the short preview call, and a suggested price using a 35% gross margin. Missing usage, unknown models, or failed agent calls leave actual cost and suggested price unset. No money is collected and no billing event is emitted. USD micro units avoid rounding away small AI calls.
+The public preview does not charge users. Each Goal record stores the selected agents, model identity, provider-reported token counts where available, a versioned rate card, the estimated cost cap for the short preview call, and a suggested price using a gross margin set in the server-side `MARGIN_BPS` configuration (3500 = 35%). Missing usage, unknown models, or failed agent calls leave actual cost and suggested price unset. No money is collected and no billing event is emitted. USD micro units avoid rounding away small AI calls.
 
 The estimates currently cover inference for the listed model only. Storage, compute, speech, image, browser, search, connector, retries, taxes, and payment fees must join the cost ledger before charging. The 16K input / 180 output token estimate is for the present bounded text preview; it is not a dependable cap for future tools or Astra reasoning. Provider charges may differ from per-response usage due to caching, minimum charges, or provider billing details. Reconcile with provider invoices.
 
