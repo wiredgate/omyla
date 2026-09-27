@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, shell, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell, desktopCapturer, globalShortcut } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
@@ -60,6 +60,20 @@ if (-not [OmylaCursor]::SetPhysicalCursorPos(${x}, ${y})) { exit 1 }`;
   });
 }
 
+function togglePresence(followCursor = false) {
+  if (!win || win.isDestroyed() || inkWin) return;
+  if (!open && followCursor) {
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    selectedDisplayId = display.id;
+    const area = display.workArea;
+    anchor = { x: area.x + area.width - 12, y: area.y + area.height - 12 };
+    selectedMarks = []; selectedCanvas = undefined;
+  }
+  open = !open;
+  win.setBounds(place(open ? expanded : compact));
+  if (open) { win.show(); win.focus(); }
+}
+
 function create() {
   const area = screen.getPrimaryDisplay().workArea;
   selectedDisplayId = screen.getPrimaryDisplay().id;
@@ -79,8 +93,7 @@ function create() {
 function authorized(event) { return win && !win.isDestroyed() && event.sender === win.webContents; }
 ipcMain.handle('overlay:toggle', event => {
   if (!authorized(event)) return false;
-  open = !open; win.setBounds(place(open ? expanded : compact));
-  if (open) win.focus();
+  togglePresence();
   return open;
 });
 ipcMain.handle('overlay:close', event => {
@@ -174,7 +187,8 @@ ipcMain.handle('overlay:set-login', (event, enabled) => {
 });
 
 if (app.requestSingleInstanceLock()) {
-  app.whenReady().then(() => { loadPreferences(); create(); });
+  app.whenReady().then(() => { loadPreferences(); create(); globalShortcut.register('CommandOrControl+Shift+O', () => togglePresence(true)); });
   app.on('second-instance', () => { if (win && !win.isDestroyed()) win.show(); });
   app.on('window-all-closed', () => app.quit());
+  app.on('will-quit', () => globalShortcut.unregisterAll());
 } else app.quit();
