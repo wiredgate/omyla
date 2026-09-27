@@ -95,7 +95,7 @@ ipcMain.handle('overlay:ink-finish', (event, marks) => {
     (!mark.box || [mark.box.x, mark.box.y, mark.box.width, mark.box.height].every(n => typeof n === 'number' && n >= 0 && n <= 1)))) {
     const display = activeDisplay();
     selectedMarks = marks.map(mark => ({ kind: mark.kind, tip: mark.tip, box: mark.box, target: '' }));
-    selectedCanvas = { kind: 'monitor', displayId: String(display.id), width: display.bounds.width, height: display.bounds.height, scaleFactor: display.scaleFactor, capturedAt: new Date().toISOString() };
+    selectedCanvas = { kind: 'monitor', displayId: String(display.id), width: display.bounds.width, height: display.bounds.height, originX: display.bounds.x, originY: display.bounds.y, scaleFactor: display.scaleFactor, observedAt: new Date().toISOString() };
     win.webContents.send('overlay:marks-updated', selectedMarks.length);
   }
   inkWin.close();
