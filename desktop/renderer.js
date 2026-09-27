@@ -15,3 +15,5 @@ document.getElementById('draw-screen').onclick = () => window.omyla.draw();
 window.omyla.onMarksUpdated(count => { document.getElementById('marks-status').textContent = `${count}件の画面指示`; });
 refreshDisplays();
 document.getElementById('preview-screen').onclick = async () => { const image = document.getElementById('screen-preview'); image.hidden = true; image.removeAttribute('src'); try { const result = await window.omyla.previewScreen(); if (result?.image) { image.src = result.image; image.hidden = false; } else document.getElementById('marks-status').textContent = '画面を取得できない'; } catch { document.getElementById('marks-status').textContent = '画面の取得が許可されていない'; } };
+
+document.getElementById('move-cursor').onclick = async () => { const status = document.getElementById('marks-status'); status.textContent = await window.omyla.moveCursor() ? 'カーソルを移動しました' : '位置を描いてからWindowsで操作してください'; };
