@@ -12,7 +12,7 @@ Source review: https://www.heyclicky.com/ and https://www.heyclicky.com/changelo
 | AI draws over the actual screen and walks through a tool | Web demo canvas guidance only | Separate click-through desktop teaching overlay with typed shapes, narration, frame-bound anchors, Stop |
 | Agent clicks/types in apps and browser | Windows user-triggered cursor move only | Task-scoped grant, authenticated desktop session, UI Automation/Win32 adapter, observe-act-verify loop, stop and audit |
 | Named persistent agents, memory, conversations, files | Named agents and parallel response per goal; limited per-session goal history | Agent identity CRUD, separate model assignment, personal/project memory, durable conversations and artifact store |
-| Multiple agents in parallel | Parallel model calls for a single goal | Independent durable task queues, budgets and simultaneous device/tool scopes |
+| Multiple agents in parallel | Parallel model calls for a single goal; no independent execution queues yet | Independent durable task queues, budgets and simultaneous device/tool scopes |
 | App/MCP connections | Resource connector architecture only | OAuth/API-key vault, capability discovery, per-resource permissions, revocation |
 | Suggestions from connected apps | Not shipped | Read-only opt-in collection, source-backed proposals, user approval and pause |
 | Scheduled routines | Not shipped | Durable schedules, retry/backoff, offline resume and per-agent cancellation |
@@ -49,3 +49,7 @@ For each resource, distinguish `Observe`, `Explain`, `Annotate`, and `Act`. The 
 5. A camera or future wearable produces an observation under the same resource protocol. It can inform advice without granting physical actuation by default.
 
 The first acceptance scenario is the next engineering milestone. It unlocks the teaching experience and provides the observation loop needed for computer use. Native voice, cross-device sync, and physical actuation follow the same protocol but are separate deliverables.
+
+## Concurrency comparison note
+
+HeyClicky's September 12 changelog explicitly says different Clickys can work on separate jobs, while approved suggestions wait in a busy Clicky's queue. Do not claim that HeyClicky supports only one task globally. The OMYLA target is deeper coordination: split one goal into dependent and independent subtasks, run independent agents concurrently, coordinate shared resources with per-resource leases, stream partial results, and merge them into one verified outcome. Parallel LLM responses already exist in the preview; durable multi-agent execution and resource locking remain to be built.
