@@ -3,16 +3,17 @@ export const RATE_VERSION = '2026-09-27';
 export const DEFAULT_MARGIN_BPS = 3500;
 export const rates = Object.freeze({
   '@cf/meta/llama-3.1-8b-instruct-fp8-fast': { provider: 'cloudflare', input: 0.045, output: 0.384 },
-  'gpt-6-astra': { provider: 'openai', input: 10, output: 50 },
-  'gpt-6-sol': { provider: 'openai', input: 2, output: 10 },
-  'gpt-6-luna': { provider: 'openai', input: 0.1, output: 0.5 }
+  'gpt-6-astra': { provider: 'openai', input: 10, cachedInput: 1, output: 50 },
+  'gpt-6-sol': { provider: 'openai', input: 2, cachedInput: 0.2, output: 10 },
+  'gpt-6-luna': { provider: 'openai', input: 0.1, cachedInput: 0.01, output: 0.5 }
 });
 
-export function providerCostMicros(model, inputTokens, outputTokens) {
+export function providerCostMicros(model, inputTokens, outputTokens, cachedInputTokens = 0) {
   const rate = rates[model];
   if (!rate || !Number.isSafeInteger(inputTokens) || inputTokens < 0 || !Number.isSafeInteger(outputTokens) || outputTokens < 0) return null;
   // 1 USD = 1M micro USD, so tokens * USD-per-M-token yields micro USD.
-  return Math.ceil(inputTokens * rate.input + outputTokens * rate.output);
+  if (!Number.isSafeInteger(cachedInputTokens) || cachedInputTokens < 0 || cachedInputTokens > inputTokens) return null;
+  return Math.ceil((inputTokens - cachedInputTokens) * rate.input + cachedInputTokens * (rate.cachedInput ?? rate.input) + outputTokens * rate.output);
 }
 
 export function customerPriceMicros(providerCost, marginBps = DEFAULT_MARGIN_BPS) {
@@ -22,15 +23,16 @@ export function customerPriceMicros(providerCost, marginBps = DEFAULT_MARGIN_BPS
 
 export function modelUsage(response) {
   const usage = response?.usage;
-  const input = usage?.prompt_tokens;
-  const output = usage?.completion_tokens;
+  const input = usage?.prompt_tokens ?? usage?.input_tokens;
+  const output = usage?.completion_tokens ?? usage?.output_tokens;
   if (!Number.isSafeInteger(input) || input < 0 || !Number.isSafeInteger(output) || output < 0) return null;
-  return { inputTokens: input, outputTokens: output };
+  const cached = usage?.input_tokens_details?.cached_tokens ?? 0;
+  return { inputTokens: input, outputTokens: output, cachedInputTokens: Number.isSafeInteger(cached) && cached >= 0 && cached <= input ? cached : 0 };
 }
 
 export function previewPricing(assignments, model, requestedMarginBps = DEFAULT_MARGIN_BPS) {
   const marginBps = Number.isInteger(requestedMarginBps) && requestedMarginBps >= 0 && requestedMarginBps <= 9000 ? requestedMarginBps : DEFAULT_MARGIN_BPS;
-  const perCallCap = providerCostMicros(model, 16000, 180);
+  const perCallCap = providerCostMicros(model, 16000, model.startsWith('gpt-6-') ? 1200 : 180);
   return {
     currency: 'USD', rateVersion: RATE_VERSION, marginBps,
     status: 'preview_unbilled',
@@ -43,7 +45,7 @@ export function previewPricing(assignments, model, requestedMarginBps = DEFAULT_
 }
 
 export function finalizePreviewPricing(steps, pricing) {
-  const costs = steps.map(step => step.usage && step.state === 'done' ? providerCostMicros(step.model, step.usage.inputTokens, step.usage.outputTokens) : null);
+  const costs = steps.map(step => step.usage && step.state === 'done' ? providerCostMicros(step.model, step.usage.inputTokens, step.usage.outputTokens, step.usage.cachedInputTokens) : null);
   const complete = costs.every(cost => cost !== null);
   const actual = complete ? costs.reduce((sum, cost) => sum + cost, 0) : null;
   return { ...pricing, meteringComplete: complete, actualProviderCostMicros: actual, suggestedCustomerPriceMicros: actual === null ? null : customerPriceMicros(actual, pricing.marginBps) };
