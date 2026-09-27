@@ -28,14 +28,15 @@ export function modelUsage(response) {
   return { inputTokens: input, outputTokens: output };
 }
 
-export function previewPricing(assignments, model) {
+export function previewPricing(assignments, model, requestedMarginBps = DEFAULT_MARGIN_BPS) {
+  const marginBps = Number.isInteger(requestedMarginBps) && requestedMarginBps >= 0 && requestedMarginBps <= 9000 ? requestedMarginBps : DEFAULT_MARGIN_BPS;
   const perCallCap = providerCostMicros(model, 16000, 180);
   return {
-    currency: 'USD', rateVersion: RATE_VERSION, marginBps: DEFAULT_MARGIN_BPS,
+    currency: 'USD', rateVersion: RATE_VERSION, marginBps,
     status: 'preview_unbilled',
     // An engineering estimate for the current short preview call; not a paid authorization.
     estimatedProviderCapMicros: perCallCap === null ? null : perCallCap * assignments.length,
-    estimatedCustomerCapMicros: perCallCap === null ? null : customerPriceMicros(perCallCap * assignments.length),
+    estimatedCustomerCapMicros: perCallCap === null ? null : customerPriceMicros(perCallCap * assignments.length, marginBps),
     actualProviderCostMicros: null, suggestedCustomerPriceMicros: null,
     meteringComplete: false
   };
@@ -45,5 +46,5 @@ export function finalizePreviewPricing(steps, pricing) {
   const costs = steps.map(step => step.usage && step.state === 'done' ? providerCostMicros(step.model, step.usage.inputTokens, step.usage.outputTokens) : null);
   const complete = costs.every(cost => cost !== null);
   const actual = complete ? costs.reduce((sum, cost) => sum + cost, 0) : null;
-  return { ...pricing, meteringComplete: complete, actualProviderCostMicros: actual, suggestedCustomerPriceMicros: actual === null ? null : customerPriceMicros(actual) };
+  return { ...pricing, meteringComplete: complete, actualProviderCostMicros: actual, suggestedCustomerPriceMicros: actual === null ? null : customerPriceMicros(actual, pricing.marginBps) };
 }
