@@ -3,6 +3,8 @@ export const RATE_VERSION = '2026-09-27';
 export const DEFAULT_MARGIN_BPS = 3500;
 export const rates = Object.freeze({
   '@cf/meta/llama-3.1-8b-instruct-fp8-fast': { provider: 'cloudflare', input: 0.045, output: 0.384 },
+  '@cf/google/gemma-4-26b-a4b-it': { provider: 'cloudflare', input: 0.1, output: 0.3 },
+  '@cf/meta/llama-3.2-11b-vision-instruct': { provider: 'cloudflare', input: 0.049, output: 0.676 },
   'gpt-6-astra': { provider: 'openai', input: 10, cachedInput: 1, output: 50 },
   'gpt-6-sol': { provider: 'openai', input: 2, cachedInput: 0.2, output: 10 },
   'gpt-6-luna': { provider: 'openai', input: 0.1, cachedInput: 0.01, output: 0.5 }
@@ -53,4 +55,10 @@ export function finalizePreviewPricing(steps, pricing) {
   const complete = costs.every(cost => cost !== null);
   const actual = complete ? costs.reduce((sum, cost) => sum + cost, 0) : null;
   return { ...pricing, meteringComplete: complete, actualProviderCostMicros: actual, suggestedCustomerPriceMicros: actual === null ? null : customerPriceMicros(actual, pricing.marginBps) };
+}
+
+// Approximate Workers AI audio rate from 2026-09-27 public pricing; not a provider invoice.
+export function audioCostMicros(model, durationMs) {
+  if (model !== '@cf/openai/whisper-large-v3-turbo' || !Number.isSafeInteger(durationMs) || durationMs <= 0 || durationMs > 15000) return null;
+  return Math.ceil(durationMs * 500 / 60000);
 }
