@@ -122,7 +122,7 @@ export default {
     const quota = env.QUOTA.getByName('global');
     if (!await quota.reserve(ip)) return reply({ error: 'daily_limit', message: '今日の公開デモ利用枠に達した。明日また試してね。' }, 429);
     const plan = planGoal(goal, context);
-    const record = { id: crypto.randomUUID(), goal, context, plan, state: 'working', steps: [], pricing: previewPricing(plan.assignments, env.TEXT_MODEL), createdAt: new Date().toISOString() };
+    const record = { id: crypto.randomUUID(), goal, context, plan, state: 'working', steps: [], pricing: previewPricing(plan.assignments, env.TEXT_MODEL, Number(env.MARGIN_BPS)), createdAt: new Date().toISOString() };
     await session.save(record);
     const settled = await Promise.allSettled(plan.assignments.map(({ agentId, task }) => runAgent(env, agents.find(agent => agent.id === agentId), task, context)));
     const steps = settled.map((outcome, i) => outcome.status === 'fulfilled' ? outcome.value : { id: plan.assignments[i].agentId, name: agents.find(agent => agent.id === plan.assignments[i].agentId).name, state: 'error', text: 'モデルの応答を取得できなかった。後で再試行してね。', model: env.TEXT_MODEL });
