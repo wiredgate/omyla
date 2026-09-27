@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('omyla', {
   draw: () => ipcRenderer.invoke('overlay:draw'),
   guide: value => ipcRenderer.invoke('overlay:guide', typeof value === 'string' ? value.slice(0, 800) : ''),
   nextGuide: () => ipcRenderer.invoke('overlay:next-guide'),
+  executeGuideClick: () => ipcRenderer.invoke('overlay:execute-guide-click'),
   stopGuide: () => ipcRenderer.invoke('overlay:stop-guide'),
   moveCursor: () => ipcRenderer.invoke('overlay:move-cursor'),
   onMarksUpdated: callback => ipcRenderer.on('overlay:marks-updated', (_event, count) => callback(count)),

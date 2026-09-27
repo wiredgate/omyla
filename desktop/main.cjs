@@ -18,8 +18,13 @@ let guideSteps = [];
 let guideIndex = 0;
 let guideDisplay;
 let guideBusy = false;
+let computerBusy = false;
+let guideFingerprint;
+let guideCapturedAt = 0;
+
 function stopGuide() {
   guideSteps = []; guideDisplay = undefined; guideIndex = 0;
+  guideFingerprint = undefined; guideCapturedAt = 0;
   if (guideWin && !guideWin.isDestroyed()) guideWin.close();
   guideWin = undefined;
 }
@@ -90,8 +95,66 @@ if (-not [OmylaCursor]::SetPhysicalCursorPos(${x}, ${y})) { exit 1 }`;
   });
 }
 
+
+function targetChanged(original, latest, step) {
+  if (!original || original.length !== latest.length) return true;
+  const width = 320, height = 180;
+  const cx = Math.round(step.x * (width - 1)), cy = Math.round(step.y * (height - 1));
+  let changed = 0, count = 0;
+  for (let dy = -8; dy <= 8; dy += 2) for (let dx = -8; dx <= 8; dx += 2) {
+    const x = Math.max(0, Math.min(width - 1, cx + dx)), y = Math.max(0, Math.min(height - 1, cy + dy));
+    const i = (y * width + x) * 4;
+    const difference = Math.abs(original[i] - latest[i]) + Math.abs(original[i + 1] - latest[i + 1]) + Math.abs(original[i + 2] - latest[i + 2]);
+    if (difference > 75) changed++;
+    count++;
+  }
+  return changed > count * .12;
+}
+function clickPhysicalPoint(point) {
+  if (process.platform !== 'win32') return Promise.resolve(false);
+  const x = Math.round(point.x), y = Math.round(point.y);
+  if (![x, y].every(Number.isSafeInteger)) return Promise.resolve(false);
+  const script = `Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class OmylaClick {
+  [StructLayout(LayoutKind.Sequential)]
+  public struct MouseInput {
+    public int dx, dy;
+    public uint mouseData, dwFlags, time;
+    public IntPtr dwExtraInfo;
+  }
+  [StructLayout(LayoutKind.Explicit, Size=40)]
+  public struct Input {
+    [FieldOffset(0)] public int type;
+    [FieldOffset(8)] public MouseInput mouse;
+  }
+  [DllImport("user32.dll", SetLastError=true)]
+  public static extern bool SetPhysicalCursorPos(int x, int y);
+  [DllImport("user32.dll", SetLastError=true)]
+  public static extern uint SendInput(uint count, Input[] inputs, int size);
+  public static bool Click(int x, int y) {
+    if (!SetPhysicalCursorPos(x, y)) return false;
+    Input down = new Input { type=0, mouse=new MouseInput { dwFlags=2 } };
+    Input up = new Input { type=0, mouse=new MouseInput { dwFlags=4 } };
+    return SendInput(2, new Input[] { down, up }, Marshal.SizeOf(typeof(Input))) == 2;
+  }
+}
+'@
+if (-not [OmylaClick]::Click(${x}, ${y})) { exit 1 }`;
+  return new Promise(resolve => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand',
+      Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true });
+    let finished = false;
+    const finish = value => { if (!finished) { finished = true; resolve(value); } };
+    const timer = setTimeout(() => { child.kill(); finish(false); }, 5000);
+    child.once('error', () => { clearTimeout(timer); finish(false); });
+    child.once('close', code => { clearTimeout(timer); finish(code === 0); });
+  });
+}
+
 function togglePresence(followCursor = false) {
-  if (!win || win.isDestroyed() || inkWin) return;
+  if (!win || win.isDestroyed() || inkWin || computerBusy) return;
   if (!open && followCursor) {
     const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
     selectedDisplayId = display.id;
@@ -170,6 +233,7 @@ ipcMain.handle('overlay:guide', async (event, value) => {
     const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1280, height: 720 } });
     const source = sources.find(item => item.display_id === displayId);
     if (!source || source.thumbnail.isEmpty()) return { error: 'capture_failed' };
+    const fingerprint = source.thumbnail.resize({ width: 320, height: 180 }).toBitmap();
     const jpeg = source.thumbnail.toJPEG(72);
     if (jpeg.length > 740000) return { error: 'image_too_large' };
     const image = `data:image/jpeg;base64,${jpeg.toString('base64')}`;
@@ -190,7 +254,9 @@ ipcMain.handle('overlay:guide', async (event, value) => {
       typeof step.text === 'string' && step.text.length <= 130 && ['circle', 'arrow'].includes(step.kind) &&
       [step.x, step.y].every(n => typeof n === 'number' && n >= 0 && n <= 1))) return { error: 'invalid_guide' };
     startGuide(current, steps);
-    return { count: steps.length, model: String(result.model || '').slice(0, 100) };
+    guideFingerprint = fingerprint;
+    guideCapturedAt = Date.now();
+    return { count: steps.length, current: steps[0].text, model: String(result.model || '').slice(0, 100) };
   } catch { return { error: 'network_error' }; }
   finally { guideBusy = false; if (win && !win.isDestroyed()) win.show(); }
 });
@@ -198,8 +264,41 @@ ipcMain.handle('overlay:next-guide', event => {
   if (!authorized(event) || !guideSteps.length) return { remaining: 0 };
   guideIndex++;
   if (guideIndex >= guideSteps.length) { stopGuide(); return { remaining: 0 }; }
-  renderGuide(); return { remaining: guideSteps.length - guideIndex };
+  renderGuide(); return { remaining: guideSteps.length - guideIndex, current: guideSteps[guideIndex].text };
 });
+
+ipcMain.handle('overlay:execute-guide-click', async event => {
+  if (!authorized(event) || computerBusy || guideBusy || inkWin || process.platform !== 'win32' ||
+      !guideDisplay || !guideSteps[guideIndex] || !guideFingerprint) return { error: 'no_guide' };
+  if (Date.now() - guideCapturedAt > 60000) { stopGuide(); return { error: 'stale' }; }
+  const display = screen.getAllDisplays().find(item => item.id === guideDisplay.id);
+  const bounds = guideDisplay.bounds;
+  if (!display || display.bounds.x !== bounds.x || display.bounds.y !== bounds.y ||
+      display.bounds.width !== bounds.width || display.bounds.height !== bounds.height) {
+    stopGuide(); return { error: 'display_changed' };
+  }
+  const step = guideSteps[guideIndex];
+  computerBusy = true;
+  guideWin?.hide();
+  win.hide();
+  try {
+    await new Promise(resolve => setTimeout(resolve, 180));
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1280, height: 720 } });
+    const source = sources.find(item => item.display_id === String(display.id));
+    if (!source || source.thumbnail.isEmpty()) return { error: 'capture_failed' };
+    const latest = source.thumbnail.resize({ width: 320, height: 180 }).toBitmap();
+    if (targetChanged(guideFingerprint, latest, step)) { stopGuide(); return { error: 'screen_changed' }; }
+    const point = screen.dipToScreenPoint({
+      x: bounds.x + Math.min(bounds.width - 1, Math.floor(step.x * bounds.width)),
+      y: bounds.y + Math.min(bounds.height - 1, Math.floor(step.y * bounds.height))
+    });
+    const clicked = await clickPhysicalPoint(point);
+    stopGuide();
+    return clicked ? { clicked: true } : { error: 'click_failed' };
+  } catch { stopGuide(); return { error: 'click_failed' }; }
+  finally { computerBusy = false; if (win && !win.isDestroyed()) win.show(); }
+});
+
 ipcMain.handle('overlay:stop-guide', event => { if (!authorized(event)) return false; stopGuide(); return true; });
 ipcMain.handle('overlay:draw', event => {
   if (!authorized(event) || inkWin || guideBusy) return false;

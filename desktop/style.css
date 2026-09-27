@@ -5,3 +5,4 @@
 #screen-preview{display:block;max-width:100%;max-height:90px;object-fit:contain;margin:2px auto;border:1px solid #536759;border-radius:5px}#screen-preview[hidden]{display:none}.canvas-controls{flex-wrap:wrap}.canvas-controls button{font-size:11px}
 
 #guide,#next-guide{background:#d4f6da;border:0;border-radius:8px;padding:8px 12px;color:#173120;font-weight:700;margin:4px 6px 4px 0}#stop-guide{background:transparent;border:1px solid #789388;border-radius:8px;padding:7px 10px;color:#e9f2ed}#guide-status{display:block;color:#c8decf;min-height:14px;font-size:11px;margin:3px 0}#guide:disabled{opacity:.55;cursor:wait}
+#execute-guide{background:#f3d7a4;border:0;border-radius:8px;padding:8px 12px;color:#39250c;font-weight:700;margin:4px 6px 4px 0}#execute-guide:disabled{opacity:.55;cursor:wait}

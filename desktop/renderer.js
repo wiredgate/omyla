@@ -20,6 +20,7 @@ document.getElementById('move-cursor').onclick = async () => { const status = do
 
 const guideButton = document.getElementById('guide'), guideStatus = document.getElementById('guide-status');
 const nextGuide = document.getElementById('next-guide'), stopGuide = document.getElementById('stop-guide');
+const executeGuide = document.getElementById('execute-guide');
 guideButton.onclick = async () => {
   if (!goal.value.trim()) { goal.focus(); return; }
   guideButton.disabled = true;
@@ -27,11 +28,35 @@ guideButton.onclick = async () => {
   try {
     const result = await window.omyla.guide(goal.value);
     if (result?.count) {
-      guideStatus.textContent = `${result.count}件の案内を実画面に表示中`;
-      nextGuide.hidden = false; stopGuide.hidden = false;
+      guideStatus.textContent = `${result.count}件の案内 · ${result.current}`;
+      nextGuide.hidden = false; stopGuide.hidden = false; executeGuide.hidden = false;
     } else guideStatus.textContent = result?.message || ({ capture_failed: '画面を取得できませんでした', network_error: '通信できませんでした', display_changed: '画面構成が変わりました', image_too_large: '画像が大きすぎます' }[result?.error] || '案内を作成できませんでした');
   } catch { guideStatus.textContent = '画面案内を開始できませんでした'; }
   finally { guideButton.disabled = false; }
 };
-nextGuide.onclick = async () => { const result = await window.omyla.nextGuide(); if (!result?.remaining) { nextGuide.hidden = true; stopGuide.hidden = true; guideStatus.textContent = '案内は終了しました'; } else guideStatus.textContent = `残り${result.remaining}件`; };
-stopGuide.onclick = async () => { await window.omyla.stopGuide(); nextGuide.hidden = true; stopGuide.hidden = true; guideStatus.textContent = '案内を消しました'; };
+nextGuide.onclick = async () => { const result = await window.omyla.nextGuide(); if (!result?.remaining) { nextGuide.hidden = true; stopGuide.hidden = true; executeGuide.hidden = true; guideStatus.textContent = '案内は終了しました'; } else guideStatus.textContent = `残り${result.remaining}件 · ${result.current}`; };
+stopGuide.onclick = async () => { await window.omyla.stopGuide(); nextGuide.hidden = true; stopGuide.hidden = true; executeGuide.hidden = true; guideStatus.textContent = '案内を消しました'; };
+
+executeGuide.onclick = async () => {
+  executeGuide.disabled = true;
+  guideStatus.textContent = '対象の画面と位置を再確認しています…';
+  try {
+    const result = await window.omyla.executeGuideClick();
+    if (result.clicked) {
+      guideStatus.textContent = '一度クリックしました。次の画面を見せるには再度「画面を見て教える」を押してください。';
+      nextGuide.hidden = true; stopGuide.hidden = true; executeGuide.hidden = true;
+    } else {
+      guideStatus.textContent = ({
+        stale: '画面案内から60秒以上経過しました。撮影し直してください。',
+        screen_changed: '対象の表示が変わりました。撮影し直してください。',
+        display_changed: 'モニター構成が変わりました。',
+        click_failed: 'Windowsがクリックを受け付けませんでした。',
+        capture_failed: '画面の再取得に失敗しました。'
+      })[result.error] || '実行できませんでした。';
+      if (['stale', 'screen_changed', 'display_changed', 'click_failed'].includes(result.error)) {
+        nextGuide.hidden = true; stopGuide.hidden = true; executeGuide.hidden = true;
+      }
+    }
+  } catch { guideStatus.textContent = '実行できませんでした。'; }
+  finally { executeGuide.disabled = false; }
+};
