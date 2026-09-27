@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('omyla', {
   close: () => ipcRenderer.invoke('overlay:close'),
   displays: () => ipcRenderer.invoke('overlay:displays'),
   selectDisplay: id => ipcRenderer.invoke('overlay:select-display', String(id)),
+  previewScreen: () => ipcRenderer.invoke('overlay:preview-screen'),
   draw: () => ipcRenderer.invoke('overlay:draw'),
   onMarksUpdated: callback => ipcRenderer.on('overlay:marks-updated', (_event, count) => callback(count)),
   openGoal: value => ipcRenderer.invoke('overlay:open-goal', typeof value === 'string' ? value.slice(0, 1500) : ''),
