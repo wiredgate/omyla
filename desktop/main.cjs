@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell, desktopCapturer } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 
@@ -73,6 +73,18 @@ ipcMain.handle('overlay:select-display', (event, id) => {
   selectedMarks = []; selectedCanvas = undefined;
   win.setBounds(place(open ? expanded : compact));
   return true;
+});
+ipcMain.handle('overlay:preview-screen', async event => {
+  if (!authorized(event) || inkWin) return null;
+  const displayId = String(activeDisplay().id);
+  win.hide();
+  try {
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1280, height: 720 } });
+    const source = sources.find(item => item.display_id === displayId);
+    if (!source || source.thumbnail.isEmpty()) return null;
+    return { displayId, image: source.thumbnail.toDataURL() };
+  } finally { if (win && !win.isDestroyed()) win.show(); }
 });
 ipcMain.handle('overlay:draw', event => {
   if (!authorized(event) || inkWin) return false;
