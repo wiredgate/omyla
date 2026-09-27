@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const modal = $('camera-mode'), frame = $('camera-frame'), video = $('camera-video'), photo = $('camera-photo');
 const ink = $('camera-ink'), context = ink.getContext('2d');
 const backdropVideo = $('camera-backdrop-video'), backdropPhoto = $('camera-backdrop-photo');
-let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], index = 0, generation = 0, micState = null;
+let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], answer = '', index = -1, generation = 0, micState = null;
 const status = message => { $('camera-status').textContent = message; };
 const clamp = n => Math.max(0, Math.min(1, n));
 
@@ -14,7 +14,7 @@ function stopStream() {
   backdropVideo.pause(); backdropVideo.srcObject = null; backdropVideo.hidden = true;
 }
 function clearGuide() {
-  steps = []; index = 0; $('camera-guidance').hidden = true; $('camera-ring').hidden = true;
+  steps = []; answer = ''; index = -1; $('camera-guidance').hidden = true; $('camera-ring').hidden = true;
   $('camera-next').textContent = '次へ →';
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
@@ -135,20 +135,32 @@ function marks() {
     return shape ? { kind: shape.kind, tip: shape.tip, box: shape.box, target: '' } : { kind: 'point', tip: line.at(-1), target: '' };
   });
 }
+function speak(message) {
+  if (!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  if (!$('camera-read').checked || !('SpeechSynthesisUtterance' in window)) return;
+  const voice = new SpeechSynthesisUtterance(message);
+  voice.lang = 'ja-JP'; voice.rate = .95;
+  speechSynthesis.speak(voice);
+}
+function showObservation() {
+  $('camera-guidance').hidden = false;
+  $('camera-step-count').textContent = 'OMYLA';
+  $('camera-step-text').textContent = answer;
+  $('camera-next').textContent = steps.length ? '場所を見る →' : '閉じる';
+  $('camera-ring').hidden = true;
+  speak(answer);
+}
 function showStep() {
   const step = steps[index]; if (!step) return clearGuide();
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
   $('camera-guidance').hidden = false;
-  $('camera-step-count').textContent = 'AIの画面案内 · ' + (index + 1) + '/' + steps.length;
+  $('camera-step-count').textContent = '画面の位置 · ' + (index + 1) + '/' + steps.length;
   $('camera-step-text').textContent = step.text;
   $('camera-next').textContent = index === steps.length - 1 ? '完了' : '次へ →';
   $('camera-ring').style.left = (clamp(step.x) * 100) + '%';
   $('camera-ring').style.top = (clamp(step.y) * 100) + '%';
   $('camera-ring').hidden = false;
-  if ($('camera-read').checked && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window) {
-    const voice = new SpeechSynthesisUtterance(step.text); voice.lang = 'ja-JP'; voice.rate = .95;
-    speechSynthesis.speak(voice);
-  }
+  speak(step.text);
 }
 $('camera-read').onchange = () => { if (!$('camera-read').checked && 'speechSynthesis' in window) speechSynthesis.cancel(); };
 $('camera-open').onclick = openCamera;
@@ -187,16 +199,22 @@ $('camera-ask').onclick = async () => {
   if (!image) return;
   if (image.length > 980000) { status('画像が大きすぎるよ。撮り直してね。'); return; }
   const button = $('camera-ask'), token = generation;
-  button.disabled = true; clearGuide(); status('画像を見て案内を考えているよ…');
+  button.disabled = true; clearGuide(); status('画像を見て答えを考えているよ…');
   try {
-    const response = await fetch('/api/guide', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const response = await fetch('/api/observe', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ goal, image, marks: marks(), surface: sourceKind }), signal: AbortSignal.timeout(60000) });
     const result = await response.json();
     if (token !== generation || modal.hidden) return;
     if (!response.ok) { status(result.message || '画面を読み取れなかった。'); return; }
-    steps = Array.isArray(result.steps) ? result.steps : [];
-    if (!steps.length) { status('この画像から案内する場所を特定できなかった。'); return; }
-    index = 0; showStep(); status('画像への案内を表示したよ。必要なら撮り直せる。');
+    if (typeof result.answer !== 'string' || !result.answer.trim()) {
+      status('答えを読み取れなかった。もう一度聞いてね。'); return;
+    }
+    answer = result.answer.trim();
+    steps = Array.isArray(result.steps) ? result.steps.filter(step =>
+      typeof step?.text === 'string' && Number.isFinite(step.x) && Number.isFinite(step.y) &&
+      step.x >= 0 && step.x <= 1 && step.y >= 0 && step.y <= 1) : [];
+    index = -1; showObservation();
+    status('答えを表示したよ。場所があれば画像上にも示せる。');
   } catch { if (token === generation && !modal.hidden) status('接続できなかった。少し待って再試行してね。'); }
   finally { button.disabled = false; }
 };
