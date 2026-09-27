@@ -3,6 +3,7 @@ import { classifyStroke } from './gesture.js';
 const $ = id => document.getElementById(id);
 const modal = $('camera-mode'), frame = $('camera-frame'), video = $('camera-video'), photo = $('camera-photo');
 const ink = $('camera-ink'), context = ink.getContext('2d');
+const backdropVideo = $('camera-backdrop-video'), backdropPhoto = $('camera-backdrop-photo');
 let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], index = 0, generation = 0;
 const status = message => { $('camera-status').textContent = message; };
 const clamp = n => Math.max(0, Math.min(1, n));
@@ -10,6 +11,7 @@ const clamp = n => Math.max(0, Math.min(1, n));
 function stopStream() {
   stream?.getTracks().forEach(track => track.stop());
   stream = null; video.pause(); video.srcObject = null;
+  backdropVideo.pause(); backdropVideo.srcObject = null; backdropVideo.hidden = true;
 }
 function clearGuide() {
   steps = []; index = 0; $('camera-guidance').hidden = true; $('camera-ring').hidden = true;
@@ -18,12 +20,14 @@ function clearGuide() {
 }
 function closeCamera() {
   ++generation; stopStream(); clearGuide(); image = ''; photo.removeAttribute('src');
+  backdropPhoto.hidden = true; backdropPhoto.removeAttribute('src');
   ink.hidden = true; photo.hidden = true; video.hidden = false;
   strokes = []; stroke = null; modal.hidden = true;
 }
 async function openCamera() {
   const token = ++generation;
   stopStream(); clearGuide(); image = ''; strokes = []; stroke = null;
+  backdropPhoto.hidden = true; backdropPhoto.removeAttribute('src');
   photo.hidden = true; photo.removeAttribute('src'); ink.hidden = true; video.hidden = false;
   $('camera-capture').hidden = true; $('camera-retake').hidden = true;
   $('camera-clear').hidden = true; $('camera-ask').hidden = true;
@@ -32,7 +36,8 @@ async function openCamera() {
   try {
     const opened = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
     if (token !== generation || modal.hidden) { opened.getTracks().forEach(track => track.stop()); return; }
-    stream = opened; video.srcObject = opened;
+    stream = opened; video.srcObject = opened; backdropVideo.srcObject = opened;
+    backdropVideo.hidden = false; backdropVideo.play().catch(() => { backdropVideo.hidden = true; });
     await video.play();
     if (token !== generation || modal.hidden) return;
     frame.style.setProperty('--camera-ratio', String(video.videoWidth / video.videoHeight || 1.333));
@@ -56,6 +61,7 @@ function encodeSnapshot(source, sourceWidth, sourceHeight) {
 function showSnapshot(data, ratio, kind) {
   sourceKind = kind;
   image = data; stopStream(); clearGuide(); strokes = []; stroke = null;
+  backdropPhoto.src = data; backdropPhoto.hidden = false;
   frame.style.setProperty('--camera-ratio', String(ratio));
   video.hidden = true; photo.src = image; photo.hidden = false;
   $('camera-capture').hidden = true; $('camera-retake').hidden = false;
@@ -65,6 +71,7 @@ function showSnapshot(data, ratio, kind) {
 function openImport() {
   ++generation; stopStream(); clearGuide();
   image = ''; strokes = []; stroke = null;
+  backdropPhoto.hidden = true; backdropPhoto.removeAttribute('src');
   video.hidden = true; photo.hidden = true; photo.removeAttribute('src');
   ink.hidden = true; $('camera-capture').hidden = true; $('camera-retake').hidden = true;
   $('camera-clear').hidden = true; $('camera-ask').hidden = true;

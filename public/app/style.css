@@ -40,3 +40,11 @@ button:not(.presence-toggle):not(.primary){background:#e9f2ebdf;color:#21382b;bo
 .camera-frame{border-color:#839e8a}
 .camera-guidance{background:#eaf6edeb;color:#203027}
 @media(max-width:650px){#workspace{max-width:none;margin:0 auto}.presence,.team{padding:16px}}
+
+/* In mobile image mode the physical view itself fills the canvas. */
+.camera-mode{background:#07120c;isolation:isolate}
+.camera-mode>.camera-backdrop{position:fixed;inset:-24px;width:calc(100% + 48px);height:calc(100% + 48px);object-fit:cover;filter:blur(20px) brightness(.55);pointer-events:none;z-index:0}
+.camera-mode>header,.camera-mode>.camera-frame,.camera-mode>.camera-tools,.camera-mode>textarea,.camera-mode>.primary,.camera-mode>.camera-guidance,.camera-mode>#camera-status{position:relative;z-index:1}
+.camera-mode header,.camera-mode header small,.camera-mode #camera-status{color:#eff9f0}
+.camera-mode textarea{background:#f6fff0e9;color:#183125}
+.camera-mode>.camera-frame{box-shadow:0 12px 45px #0008}
