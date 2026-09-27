@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
+import { modelUsage, previewPricing, finalizePreviewPricing } from './pricing.js';
 
 const agents = [
   { id: 'kai', name: 'Kai', role: '技術面を調べ、実現可能な具体案を示す' },
@@ -87,7 +88,7 @@ async function runAgent(env, agent, task, context) {
     ], max_tokens: 180, temperature: 0.3
   });
   if (!response.response?.trim()) throw new Error('empty response');
-  return { id: agent.id, name: agent.name, state: 'done', text: response.response.trim().slice(0, 800), model };
+  return { id: agent.id, name: agent.name, state: 'done', text: response.response.trim().slice(0, 800), model, usage: modelUsage(response) };
 }
 
 export default {
@@ -121,12 +122,13 @@ export default {
     const quota = env.QUOTA.getByName('global');
     if (!await quota.reserve(ip)) return reply({ error: 'daily_limit', message: '今日の公開デモ利用枠に達した。明日また試してね。' }, 429);
     const plan = planGoal(goal, context);
-    const record = { id: crypto.randomUUID(), goal, context, plan, state: 'working', steps: [], createdAt: new Date().toISOString() };
+    const record = { id: crypto.randomUUID(), goal, context, plan, state: 'working', steps: [], pricing: previewPricing(plan.assignments, env.TEXT_MODEL), createdAt: new Date().toISOString() };
     await session.save(record);
     const settled = await Promise.allSettled(plan.assignments.map(({ agentId, task }) => runAgent(env, agents.find(agent => agent.id === agentId), task, context)));
     const steps = settled.map((outcome, i) => outcome.status === 'fulfilled' ? outcome.value : { id: plan.assignments[i].agentId, name: agents.find(agent => agent.id === plan.assignments[i].agentId).name, state: 'error', text: 'モデルの応答を取得できなかった。後で再試行してね。', model: env.TEXT_MODEL });
     record.steps = steps;
     record.state = steps.every(x => x.state === 'done') ? 'done' : 'partial';
+    record.pricing = finalizePreviewPricing(steps, record.pricing);
     await session.save(record);
     return reply(record);
   }
