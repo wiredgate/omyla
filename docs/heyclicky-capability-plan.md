@@ -31,3 +31,21 @@ Source review: https://www.heyclicky.com/ and https://www.heyclicky.com/changelo
 6. **Account and metered billing**: authenticated devices, budget controls, billing and support flows.
 
 Do not promise parity until each capability is actually working on real applications. A Mac-only feature can have a Windows implementation first; platform differences should be reported, not hidden. Device control and screen capture require the local client; the public LP and browser demo cannot grant OS-wide privileges.
+
+## OMYLA's next level
+
+Parity is the floor. OMYLA's product boundary is the user's real environment: every monitor, mobile screen, browser page, camera stream, file, connected service, and eventually physical device is a `Resource` with its own observations, actions, capabilities, and permission scope. No central chat window is required for ordinary use. The one small Presence button is an entry point; guidance and work appear at the resource itself.
+
+A `Goal` belongs to the person or team, not to a device or an LLM. A `Manager` can delegate simultaneous `Task` records to named `AgentIdentity` records. Each task uses a separately resolved `ModelRoute`; changing Astra/Sol/Luna or another provider must not erase an agent's personality, memory, permissions, or work. Agents can collaborate through typed artifacts and observations, rather than sharing unrestricted device access.
+
+For each resource, distinguish `Observe`, `Explain`, `Annotate`, and `Act`. The first three may support live teaching; `Act` requires a task-specific grant. A user can say “show me” and see a grounded arrow and short explanation, then say “do it” to authorize bounded execution. Drawing on a screen never silently becomes permission to click. A successful task includes a verified resulting state, an action trail, and a way to undo or recover when the external system permits it.
+
+### Acceptance scenarios
+
+1. On two Windows monitors, the user circles a control in an unfamiliar app and asks by voice how to do something. OMYLA identifies the specific app/screen from a consented fresh frame, draws a correct pointer on that monitor, explains one step, and revises the next step after the screen changes.
+2. The user asks OMYLA to perform that workflow. The agent obtains a task-scoped grant, works with its own input channel and a visible Stop control, and pauses at a payment, send, delete, or credential action for a separate decision. It reports the observed result rather than an intention.
+3. The user begins on Windows and continues on mobile or in the browser. The same goal and agent identities remain, while each device exposes only the capabilities its OS and user permissions allow.
+4. Two agents work in parallel on different resources under separate budgets; one can be stopped without stopping the other. The operator can change the model route while preserving identity and history.
+5. A camera or future wearable produces an observation under the same resource protocol. It can inform advice without granting physical actuation by default.
+
+The first acceptance scenario is the next engineering milestone. It unlocks the teaching experience and provides the observation loop needed for computer use. Native voice, cross-device sync, and physical actuation follow the same protocol but are separate deliverables.
