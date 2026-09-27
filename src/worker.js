@@ -237,9 +237,45 @@ async function transcribeResponse(request, env, url) {
   }
 }
 
+async function browserGuideResponse(request, env) {
+  if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
+  const origin = request.headers.get('Origin');
+  if (origin && !/^chrome-extension:\/\/[a-p]{32}$/.test(origin)) return json({ error: 'origin_denied' }, 403);
+  if (!request.headers.get('content-type')?.startsWith('application/json')) return json({ error: 'json_required' }, 415);
+  if (Number(request.headers.get('content-length')) > 10000) return json({ error: 'too_large' }, 413);
+  let body;
+  try {
+    const raw = await request.text();
+    if (raw.length > 10000) return json({ error: 'too_large' }, 413);
+    body = JSON.parse(raw);
+  } catch { return json({ error: 'invalid_json' }, 400); }
+  const goal = typeof body?.goal === 'string' ? body.goal.trim() : '';
+  if (!goal || goal.length > 1500 || body?.context?.surface?.kind !== 'browser-tab') return json({ error: 'invalid_input' }, 400);
+  const context = normalizeContext(body.context);
+  const plan = planGoal(goal, context);
+  let models;
+  try { models = resolveAgentModels(env, plan.assignments); }
+  catch { return json({ error: 'model_configuration_error' }, 503); }
+  const quota = env.QUOTA.getByName('global');
+  if (!await quota.reserve(request.headers.get('CF-Connecting-IP') || 'unknown'))
+    return json({ error: 'daily_limit', message: '今日の公開デモ利用枠に達した。明日また試してね。' }, 429);
+  const settled = await Promise.allSettled(plan.assignments.map(({ agentId, task }) =>
+    runAgent(env, agents.find(agent => agent.id === agentId), task, context, models[agentId])));
+  const steps = settled.map((outcome, i) => outcome.status === 'fulfilled' ? outcome.value : {
+    id: plan.assignments[i].agentId, name: agents.find(agent => agent.id === plan.assignments[i].agentId).name,
+    state: 'error', text: '応答を取得できなかった。', model: models[plan.assignments[i].agentId]
+  });
+  for (const step of steps) {
+    try { await quota.recordPreviewUsage({ id: crypto.randomUUID(), kind: 'browser', model: step.model, state: step.state, usage: step.usage }); }
+    catch { /* The public preview cannot charge users. */ }
+  }
+  return json({ steps: steps.map(({ id, name, state, text }) => ({ id, name, state, text })) });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/api/browser-guide') return browserGuideResponse(request, env);
     if (url.pathname === '/api/guide') return guideResponse(request, env, url);
     if (url.pathname === '/api/transcribe') return transcribeResponse(request, env, url);
     if (url.pathname !== '/api/goals') return env.ASSETS.fetch(request);

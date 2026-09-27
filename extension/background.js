@@ -7,7 +7,18 @@ chrome.action.onClicked.addListener(async tab => {
   }
 });
 
-chrome.runtime.onMessage.addListener((message, sender) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === 'omyla-browser-guide') {
+    if (!sender.tab?.id || !message.payload || typeof message.payload.goal !== 'string' || message.payload.goal.length > 1500) return;
+    fetch('https://omyla.uwaaa.com/api/browser-guide', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(message.payload), signal: AbortSignal.timeout(45000)
+    }).then(async response => {
+      const data = await response.json();
+      sendResponse(response.ok ? { ok: true, data } : { ok: false, error: data.message || '案内を取得できなかった。' });
+    }).catch(() => sendResponse({ ok: false, error: '接続できなかった。少し待って再試行してね。' }));
+    return true;
+  }
   if (message?.type !== 'omyla-handoff' || !sender.tab?.id) return;
   const payload = message.payload;
   if (!payload || typeof payload !== 'object' || typeof payload.goal !== 'string' || payload.goal.length > 1500) return;
