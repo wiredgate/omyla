@@ -72,7 +72,7 @@
   }
   function stopGuide() { speechSynthesis.cancel(); guide = []; $('#guide-ring').hidden = true; $('#guide-card').hidden = true; }
   function showGuide() {
-    const step = guide[guideIndex], mark = guideMarks.at(-1);
+    const step = guide[guideIndex], mark = Number.isInteger(step?.markIndex) ? guideMarks[step.markIndex] : null;
     if (!step) return stopGuide();
     $('#guide-heading').textContent = step.name + ' · ' + (guideIndex + 1) + '/' + guide.length;
     $('#guide-text').textContent = step.text;
@@ -108,7 +108,7 @@
         $('#preview').textContent = '画面が変わったので、もう一度対象を指してね。'; return;
       }
       if (!result?.ok) { $('#preview').textContent = result?.error || '案内を取得できなかった。'; return; }
-      guide = (result.data?.steps || []).filter(x => x && typeof x.text === 'string' && typeof x.name === 'string');
+      guide = (result.data?.steps || []).filter(x => x && typeof x.text === 'string' && typeof x.name === 'string' && (x.markIndex === null || Number.isInteger(x.markIndex) && x.markIndex >= 0 && x.markIndex < data.context.marks.length));
       if (!guide.length) { $('#preview').textContent = '案内を取得できなかった。'; return; }
       guideMarks = data.context.marks;
       guideIndex = 0; setOpen(false); showGuide();
