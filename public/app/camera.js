@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const modal = $('camera-mode'), frame = $('camera-frame'), video = $('camera-video'), photo = $('camera-photo');
 const ink = $('camera-ink'), context = ink.getContext('2d');
 const backdropVideo = $('camera-backdrop-video'), backdropPhoto = $('camera-backdrop-photo');
-let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], index = 0, generation = 0;
+let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], index = 0, generation = 0, micState = null;
 const status = message => { $('camera-status').textContent = message; };
 const clamp = n => Math.max(0, Math.min(1, n));
 
@@ -19,13 +19,14 @@ function clearGuide() {
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
 function closeCamera() {
-  ++generation; stopStream(); clearGuide(); image = ''; photo.removeAttribute('src');
+  ++generation; void stopMic(false); stopStream(); clearGuide(); image = ''; photo.removeAttribute('src');
   backdropPhoto.hidden = true; backdropPhoto.removeAttribute('src');
   ink.hidden = true; photo.hidden = true; video.hidden = false;
   strokes = []; stroke = null; modal.hidden = true;
 }
 async function openCamera() {
   const token = ++generation;
+  void stopMic(false);
   stopStream(); clearGuide(); image = ''; strokes = []; stroke = null;
   backdropPhoto.hidden = true; backdropPhoto.removeAttribute('src');
   photo.hidden = true; photo.removeAttribute('src'); ink.hidden = true; video.hidden = false;
@@ -69,7 +70,7 @@ function showSnapshot(data, ratio, kind) {
   ink.hidden = false; requestAnimationFrame(resizeInk);
 }
 function openImport() {
-  ++generation; stopStream(); clearGuide();
+  ++generation; void stopMic(false); stopStream(); clearGuide();
   image = ''; strokes = []; stroke = null;
   backdropPhoto.hidden = true; backdropPhoto.removeAttribute('src');
   video.hidden = true; photo.hidden = true; photo.removeAttribute('src');
@@ -136,6 +137,7 @@ function marks() {
 }
 function showStep() {
   const step = steps[index]; if (!step) return clearGuide();
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
   $('camera-guidance').hidden = false;
   $('camera-step-count').textContent = 'AIの画面案内 · ' + (index + 1) + '/' + steps.length;
   $('camera-step-text').textContent = step.text;
@@ -143,7 +145,12 @@ function showStep() {
   $('camera-ring').style.left = (clamp(step.x) * 100) + '%';
   $('camera-ring').style.top = (clamp(step.y) * 100) + '%';
   $('camera-ring').hidden = false;
+  if ($('camera-read').checked && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window) {
+    const voice = new SpeechSynthesisUtterance(step.text); voice.lang = 'ja-JP'; voice.rate = .95;
+    speechSynthesis.speak(voice);
+  }
 }
+$('camera-read').onchange = () => { if (!$('camera-read').checked && 'speechSynthesis' in window) speechSynthesis.cancel(); };
 $('camera-open').onclick = openCamera;
 $('camera-close').onclick = closeCamera;
 $('camera-retake').onclick = openCamera;
@@ -174,6 +181,7 @@ ink.addEventListener('pointerup', event => {
 });
 ink.addEventListener('pointercancel', () => { stroke = null; drawInk(); });
 $('camera-ask').onclick = async () => {
+  if (micState) { status('録音を止めてから質問してね。'); return; }
   const goal = $('camera-goal').value.trim();
   if (!goal) { $('camera-goal').focus(); return; }
   if (!image) return;
@@ -193,5 +201,71 @@ $('camera-ask').onclick = async () => {
   finally { button.disabled = false; }
 };
 $('camera-next').onclick = () => { if (++index >= steps.length) clearGuide(); else showStep(); };
+function wave(samples, sampleRate) {
+  const length = Math.min(224000, Math.round(samples.length * 16000 / sampleRate));
+  const bytes = new Uint8Array(44 + length * 2), view = new DataView(bytes.buffer);
+  const tag = (offset, value) => { for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i)); };
+  tag(0, 'RIFF'); view.setUint32(4, bytes.length - 8, true); tag(8, 'WAVE'); tag(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, 16000, true); view.setUint32(28, 32000, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  tag(36, 'data'); view.setUint32(40, length * 2, true);
+  for (let i = 0; i < length; i++) {
+    const position = i * sampleRate / 16000, low = Math.floor(position), ratio = position - low;
+    const sample = (samples[low] || 0) * (1 - ratio) + (samples[low + 1] || 0) * ratio;
+    view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, Math.round(sample * 32767))), true);
+  }
+  return bytes;
+}
+async function stopMic(submit = true) {
+  const state = micState; if (!state) return;
+  micState = null; clearTimeout(state.timer);
+  state.processor.disconnect(); state.source.disconnect();
+  state.stream.getTracks().forEach(track => track.stop());
+  try { await state.context.close(); } catch {}
+  $('camera-talk').textContent = '🎙 押して話す'; $('camera-talk').setAttribute('aria-pressed', 'false');
+  if (!submit || modal.hidden) return;
+  const length = state.parts.reduce((n, part) => n + part.length, 0);
+  if (length < state.context.sampleRate / 4) { status('もう少し長く話してね。'); return; }
+  const samples = new Float32Array(length);
+  let offset = 0;
+  for (const part of state.parts) { samples.set(part, offset); offset += part.length; }
+  const bytes = wave(samples, state.context.sampleRate);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  const token = generation;
+  $('camera-talk').disabled = true; status('音声を文字にしているよ…');
+  try {
+    const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audio: btoa(binary) }), signal: AbortSignal.timeout(45000) });
+    const result = await response.json();
+    if (token !== generation || modal.hidden) return;
+    if (!response.ok || !result.text) { status(result.message || '音声を認識できなかった。'); return; }
+    $('camera-goal').value = [$('camera-goal').value.trim(), result.text].filter(Boolean).join(' ').slice(0, 800);
+    status('言葉を入力したよ。内容を確認してからAIに聞いてね。');
+  } catch { if (token === generation && !modal.hidden) status('音声の接続に失敗した。'); }
+  finally { $('camera-talk').disabled = false; }
+}
+$('camera-talk').onclick = async () => {
+  if (micState) { await stopMic(); return; }
+  if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) { status('このブラウザでは音声入力を使えないよ。'); return; }
+  let audio;
+  const token = generation;
+  try {
+    audio = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    if (modal.hidden || token !== generation) { audio.getTracks().forEach(track => track.stop()); return; }
+    const audioContext = new AudioContext(), source = audioContext.createMediaStreamSource(audio);
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+    const state = { stream: audio, context: audioContext, source, processor, parts: [], timer: null };
+    processor.onaudioprocess = event => {
+      if (micState !== state) return;
+      state.parts.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+    };
+    source.connect(processor); processor.connect(audioContext.destination);
+    micState = state; state.timer = setTimeout(() => void stopMic(), 12500);
+    $('camera-talk').textContent = '■ 録音を止める'; $('camera-talk').setAttribute('aria-pressed', 'true');
+    status('録音中 · 最大12秒。止めると文字にするよ。');
+  } catch { audio?.getTracks().forEach(track => track.stop()); status('マイクを使えなかった。端末の設定を確認してね。'); }
+};
 document.addEventListener('visibilitychange', () => { if (document.hidden && !modal.hidden) closeCamera(); });
 addEventListener('resize', () => { if (!ink.hidden) resizeInk(); });

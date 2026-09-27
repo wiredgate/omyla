@@ -2,9 +2,9 @@
 
 ## iPhone / iOS
 
-- Inside OMYLA, the camera view or a user-selected screenshot is the canvas. This works today in the mobile web preview at `/app/`.
+- Inside OMYLA, the camera view or a user-selected screenshot is the canvas. The user can point, draw, type or press to speak. Short audio is sent to the transcription endpoint only after the user stops recording; the text is reviewable before the visual request. Guidance is spoken while the web page remains in the foreground. This works today in the mobile web preview at `/app/`.
 - To bring another app's screen into OMYLA, a native iOS Share Extension can receive a screenshot shared by the user. This is a planned native integration.
-- ReplayKit Broadcast Upload Extension can process screen samples after the user explicitly starts a broadcast. It does not grant a general-purpose floating, interactive window over other apps. The broadcast must be stopped visibly and its samples minimized before cloud submission.
+- A native iOS app with an appropriate background audio session is the candidate for voice playback while users switch apps; browser speech synthesis cannot be promised to continue in the background. ReplayKit Broadcast Upload Extension can process screen samples after the user explicitly starts a broadcast. It does not grant a general-purpose floating, interactive window over other apps. The broadcast must be stopped visibly and its samples minimized before cloud submission.
 - iOS Picture in Picture is designed for video playback; it is not a replacement for a freely interactive OS-wide overlay. Do not advertise an always-on-top button across other iPhone apps.
 - iOS cannot be promised autonomous taps into arbitrary third-party apps with public application APIs. Use in-app guidance and supported app-specific actions, share intents, and Shortcuts where appropriate.
 
