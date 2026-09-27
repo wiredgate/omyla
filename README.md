@@ -9,14 +9,14 @@ The product landing page is at https://omyla.uwaaa.com/. The web app preview liv
 - A Cloudflare Worker routes direct requests to named agents and routes general goals to relevant agents using explicit rules. Selected agents run in parallel and Manager aggregates the resulting proposals. This is a first routing layer, not autonomous task decomposition or execution. Identity prompts are independent of the `TEXT_MODEL` configuration. The Worker limits each IP to five goals and everyone to 30 goals per UTC day using a SQLite Durable Object.
 - A separate session Durable Object keeps the ten most recent goals for this browser. The session is carried by an HttpOnly cookie; it is not an account and does not sync across devices. The UI can delete the saved history.
 - The optional unpacked Chromium extension in `extension/` places one small button on ordinary web pages and hands only selected DOM labels, page hostname/title, and the user's instruction to the public preview for review. It requests HTTP/HTTPS site access to display on each page. See `extension/README.md` for installation and scope.
-- The intended resident UI is a single small button on the page; the action panel and drawing surface appear only while the user opens it. The larger public site remains an explanatory preview.
+- The intended resident UI is normally transparent: the current monitor(s), phone screen, browser tab, or camera view is the canvas. A small control, transient marks, results, and permission prompts appear only when needed. The larger public site remains an explanatory preview; see `docs/presence-architecture.md`.
 - `desktop/` is a local Electron shell with one button above the desktop and a short request panel; it hands text to the public preview for review. Packaged Windows/macOS builds are configured to start at login, with an opt-out in the panel. An installer is not yet supplied. It does not yet capture the screen or control other applications. See `desktop/README.md`.
 - Agent responses are proposals only. The service cannot read email, alter code, browse the computer, publish, or execute tools. There is no simulated approval button.
 - Goal records now retain provider-reported token usage when present and a versioned 35% gross margin calculation for internal planning. The public preview does not bill users. Missing usage is never treated as zero cost; see `docs/usage-billing.md`.
 
 ## Deployment
 
-Pushes to `main` deploy through GitHub Actions using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The Cloudflare Worker and custom domain are defined in `wrangler.jsonc`. Never commit credentials. The model is configured in `src/worker.js`; replace `runAgent` with a provider adapter to route other models without changing agent identities.
+Pushes to `main` deploy through GitHub Actions using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The Cloudflare Worker and custom domain are defined in `wrangler.jsonc`. Never commit credentials. The operator selects fallback `TEXT_MODEL` and optional per-Agent `AGENT_MODELS` in `wrangler.jsonc`. OpenAI routes additionally require a Worker secret and explicit paid-model enable flag; public users cannot switch models. See `docs/usage-billing.md`.
 
 ## Development boundaries
 
