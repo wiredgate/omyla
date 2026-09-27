@@ -177,6 +177,14 @@ function create() {
     hasShadow: false, backgroundColor: '#00000000', show: false,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false }
   });
+  const microphoneAllowed = (contents, permission, details) =>
+    contents === win.webContents && permission === 'media' &&
+    details?.isMainFrame !== false &&
+    (!details?.mediaTypes || details.mediaTypes.length === 1 && details.mediaTypes[0] === 'audio');
+  win.webContents.session.setPermissionCheckHandler((contents, permission, _origin, details) =>
+    microphoneAllowed(contents, permission, details));
+  win.webContents.session.setPermissionRequestHandler((contents, permission, callback, details) =>
+    callback(microphoneAllowed(contents, permission, details)));
   win.webContents.on('will-navigate', event => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.loadFile(path.join(__dirname, 'index.html'));
@@ -219,6 +227,28 @@ ipcMain.handle('overlay:preview-screen', async event => {
     return { displayId, image: source.thumbnail.toDataURL() };
   } finally { if (win && !win.isDestroyed()) win.show(); if (guideWin && !guideWin.isDestroyed()) guideWin.showInactive(); }
 });
+
+ipcMain.handle('overlay:transcribe', async (event, data) => {
+  if (!authorized(event) || !(data instanceof Uint8Array) || data.byteLength < 200 ||
+      data.byteLength > 600000) return { error: 'invalid_audio' };
+  const wav = Buffer.from(data);
+  if (wav.toString('ascii', 0, 4) !== 'RIFF' || wav.toString('ascii', 8, 12) !== 'WAVE' ||
+      wav.toString('ascii', 12, 16) !== 'fmt ' || wav.readUInt16LE(20) !== 1 ||
+      wav.readUInt16LE(22) !== 1 || wav.readUInt32LE(24) !== 16000 ||
+      wav.readUInt16LE(34) !== 16 || wav.toString('ascii', 36, 40) !== 'data' ||
+      wav.readUInt32LE(40) !== wav.length - 44) return { error: 'invalid_audio' };
+  try {
+    const response = await fetch('https://omyla.uwaaa.com/api/transcribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audio: wav.toString('base64') }),
+      signal: AbortSignal.timeout(30000)
+    });
+    const result = await response.json();
+    if (!response.ok) return { error: result.error || 'service_unavailable', message: result.message };
+    return typeof result.text === 'string' ? { text: result.text.slice(0, 800) } : { error: 'invalid_transcript' };
+  } catch { return { error: 'network_error' }; }
+});
+
 ipcMain.handle('overlay:guide', async (event, value) => {
   if (!authorized(event) || inkWin || guideBusy || typeof value !== 'string') return { error: 'busy' };
   const goal = value.trim();

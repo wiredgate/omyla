@@ -169,10 +169,36 @@ async function guideResponse(request, env, url) {
   }
 }
 
+
+async function transcribeResponse(request, env, url) {
+  if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
+  const origin = request.headers.get('Origin');
+  if (origin && origin !== url.origin) return json({ error: 'origin_denied' }, 403);
+  if (!request.headers.get('content-type')?.startsWith('application/json')) return json({ error: 'json_required' }, 415);
+  if (Number(request.headers.get('content-length')) > 900000) return json({ error: 'too_large' }, 413);
+  let body;
+  try {
+    const raw = await request.text();
+    if (raw.length > 900000) return json({ error: 'too_large' }, 413);
+    body = JSON.parse(raw);
+  } catch { return json({ error: 'invalid_json' }, 400); }
+  const audio = body?.audio;
+  if (typeof audio !== 'string' || audio.length < 1000 || audio.length > 850000 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(audio)) return json({ error: 'invalid_audio' }, 400);
+  if (!await env.QUOTA.getByName('audio-preview').reserve(request.headers.get('CF-Connecting-IP') || 'unknown'))
+    return json({ error: 'daily_limit', message: '今日の音声入力の利用枠に達した。' }, 429);
+  try {
+    const result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', { audio, task: 'transcribe' });
+    const text = String(result?.text || '').trim().slice(0, 800);
+    return text ? json({ text }) : json({ error: 'empty_transcript' }, 422);
+  } catch { return json({ error: 'transcription_unavailable' }, 503); }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/api/guide') return guideResponse(request, env, url);
+    if (url.pathname === '/api/transcribe') return transcribeResponse(request, env, url);
     if (url.pathname !== '/api/goals') return env.ASSETS.fetch(request);
     const existing = sessionId(request);
     const id = existing || crypto.randomUUID();

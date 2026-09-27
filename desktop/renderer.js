@@ -1,7 +1,7 @@
 const orb = document.getElementById('orb');
 const panel = document.getElementById('panel');
 const goal = document.getElementById('goal');
-function show(open) { panel.hidden = !open; orb.setAttribute('aria-expanded', String(open)); orb.setAttribute('aria-label', open ? 'OMYLAを閉じる' : 'OMYLAを開く'); if (open) goal.focus(); }
+function show(open) { if (!open && micState) stopMic(false); panel.hidden = !open; orb.setAttribute('aria-expanded', String(open)); orb.setAttribute('aria-label', open ? 'OMYLAを閉じる' : 'OMYLAを開く'); if (open) goal.focus(); }
 orb.onclick = async () => show(await window.omyla.toggle());
 document.getElementById('close').onclick = async () => { await window.omyla.close(); show(false); };
 document.getElementById('send').onclick = async () => { if (!goal.value.trim()) { goal.focus(); return; } const sent = await window.omyla.openGoal(goal.value); if (sent) { goal.value = ''; const image = document.getElementById('screen-preview'); image.hidden = true; image.removeAttribute('src'); show(false); } };
@@ -59,4 +59,70 @@ executeGuide.onclick = async () => {
     }
   } catch { guideStatus.textContent = '実行できませんでした。'; }
   finally { executeGuide.disabled = false; }
+};
+
+const micButton = document.getElementById('mic'), micStatus = document.getElementById('mic-status');
+let micState;
+function wave(samples, sampleRate) {
+  const length = Math.min(240000, Math.round(samples.length * 16000 / sampleRate));
+  const bytes = new Uint8Array(44 + length * 2), view = new DataView(bytes.buffer);
+  const tag = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+  tag(0, 'RIFF'); view.setUint32(4, bytes.length - 8, true); tag(8, 'WAVE'); tag(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, 16000, true); view.setUint32(28, 32000, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  tag(36, 'data'); view.setUint32(40, length * 2, true);
+  for (let i = 0; i < length; i++) {
+    const position = i * sampleRate / 16000, low = Math.floor(position), blend = position - low;
+    const sample = (samples[low] || 0) * (1 - blend) + (samples[low + 1] || 0) * blend;
+    view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, Math.round(sample * 32767))), true);
+  }
+  return bytes;
+}
+async function stopMic(upload = true) {
+  const state = micState;
+  if (!state) return;
+  micState = undefined; clearTimeout(state.timer);
+  state.processor.disconnect(); state.source.disconnect();
+  state.stream.getTracks().forEach(track => track.stop());
+  await state.context.close();
+  micButton.setAttribute('aria-pressed', 'false'); micButton.textContent = '🎙 話す';
+  if (!upload) { micStatus.textContent = '録音を破棄しました'; return; }
+  const size = state.parts.reduce((n, part) => n + part.length, 0);
+  if (size < state.context.sampleRate / 4) { micStatus.textContent = 'もう少し長く話してね'; return; }
+  const samples = new Float32Array(size);
+  let offset = 0;
+  for (const part of state.parts) { samples.set(part, offset); offset += part.length; }
+  micStatus.textContent = '音声を文字にしています…';
+  const result = await window.omyla.transcribe(wave(samples, state.context.sampleRate));
+  if (result.text) {
+    goal.value = [goal.value.trim(), result.text].filter(Boolean).join(' ').slice(0, 1500);
+    micStatus.textContent = '文字にしました。内容を確認して送信してね。';
+    goal.focus();
+  } else micStatus.textContent = result.message || '音声を文字にできませんでした';
+}
+micButton.onclick = async () => {
+  if (micState) { await stopMic(); return; }
+  if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) { micStatus.textContent = 'この端末では録音できません'; return; }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    if (panel.hidden) { stream.getTracks().forEach(track => track.stop()); return; }
+    const context = new AudioContext();
+    const source = context.createMediaStreamSource(stream);
+    const processor = context.createScriptProcessor(4096, 1, 1);
+    const state = { stream, context, source, processor, parts: [], timer: null, samples: 0 };
+    processor.onaudioprocess = event => {
+      if (micState !== state) return;
+      const input = event.inputBuffer.getChannelData(0);
+      state.parts.push(new Float32Array(input));
+      state.samples += input.length;
+      if (state.samples >= context.sampleRate * 15) stopMic();
+    };
+    source.connect(processor); processor.connect(context.destination);
+    micState = state;
+    state.timer = setTimeout(() => stopMic(), 15500);
+    micButton.setAttribute('aria-pressed', 'true'); micButton.textContent = '■ 録音を止める';
+    micStatus.textContent = '録音中 · 最大15秒';
+  } catch { stream?.getTracks().forEach(track => track.stop()); micStatus.textContent = 'マイクを使えませんでした。Windowsのマイク設定を確認してね。'; }
 };

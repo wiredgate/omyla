@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('omyla', {
   previewScreen: () => ipcRenderer.invoke('overlay:preview-screen'),
   draw: () => ipcRenderer.invoke('overlay:draw'),
   guide: value => ipcRenderer.invoke('overlay:guide', typeof value === 'string' ? value.slice(0, 800) : ''),
+  transcribe: bytes => ipcRenderer.invoke('overlay:transcribe', bytes),
   nextGuide: () => ipcRenderer.invoke('overlay:next-guide'),
   executeGuideClick: () => ipcRenderer.invoke('overlay:execute-guide-click'),
   stopGuide: () => ipcRenderer.invoke('overlay:stop-guide'),
