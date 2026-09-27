@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { modelUsage, previewPricing, finalizePreviewPricing } from './pricing.js';
+import { modelUsage, providerCostMicros, previewPricing, finalizePreviewPricing } from './pricing.js';
 import { runModel } from './model-provider.js';
 
 const agents = [
@@ -33,8 +33,22 @@ const cookieName = 'omyla_session';
 const sessionId = request => request.headers.get('Cookie')?.match(/(?:^|;\s*)omyla_session=([a-f0-9-]{36})(?:;|$)/)?.[1];
 
 export class GoalSession extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS usage_events (id TEXT PRIMARY KEY, goal_id TEXT NOT NULL, agent_id TEXT NOT NULL, model TEXT NOT NULL, state TEXT NOT NULL, input_tokens INTEGER, output_tokens INTEGER, cached_input_tokens INTEGER, provider_cost_micros INTEGER, created_at TEXT NOT NULL)');
+  }
   async list() { return (await this.ctx.storage.get('goals')) || []; }
-  async clear() { await this.ctx.storage.delete('goals'); }
+  async clear() {
+    await this.ctx.storage.delete('goals');
+    this.ctx.storage.sql.exec('DELETE FROM usage_events');
+  }
+  recordUsage(goalId, step) {
+    const usage = step.state === 'done' ? step.usage : null;
+    const cost = usage ? providerCostMicros(step.model, usage.inputTokens, usage.outputTokens, usage.cachedInputTokens) : null;
+    this.ctx.storage.sql.exec('INSERT OR IGNORE INTO usage_events (id, goal_id, agent_id, model, state, input_tokens, output_tokens, cached_input_tokens, provider_cost_micros, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      `${goalId}:${step.id}:inference`, goalId, step.id, step.model, step.state,
+      usage?.inputTokens ?? null, usage?.outputTokens ?? null, usage?.cachedInputTokens ?? null, cost, new Date().toISOString());
+  }
   async save(record) {
     const goals = await this.list();
     const index = goals.findIndex(item => item.id === record.id);
@@ -126,9 +140,14 @@ export default {
     await session.save(record);
     const settled = await Promise.allSettled(plan.assignments.map(({ agentId, task }) => runAgent(env, agents.find(agent => agent.id === agentId), task, context)));
     const steps = settled.map((outcome, i) => outcome.status === 'fulfilled' ? outcome.value : { id: plan.assignments[i].agentId, name: agents.find(agent => agent.id === plan.assignments[i].agentId).name, state: 'error', text: 'モデルの応答を取得できなかった。後で再試行してね。', model: env.TEXT_MODEL });
+    let ledgerComplete = true;
+    for (const step of steps) {
+      try { await session.recordUsage(record.id, step); } catch { ledgerComplete = false; }
+    }
     record.steps = steps;
     record.state = steps.every(x => x.state === 'done') ? 'done' : 'partial';
     record.pricing = finalizePreviewPricing(steps, record.pricing);
+    if (!ledgerComplete) record.pricing = { ...record.pricing, meteringComplete: false, actualProviderCostMicros: null, suggestedCustomerPriceMicros: null };
     await session.save(record);
     return reply(record);
   }
