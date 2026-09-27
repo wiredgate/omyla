@@ -6,6 +6,6 @@
   "ai": { "binding": "AI" },
   "durable_objects": { "bindings": [{ "name": "QUOTA", "class_name": "Quota" }, { "name": "GOALS", "class_name": "GoalSession" }] },
   "exports": { "Quota": { "type": "durable-object", "storage": "sqlite" }, "GoalSession": { "type": "durable-object", "storage": "sqlite" } },
-  "vars": { "TEXT_MODEL": "@cf/meta/llama-3.1-8b-instruct-fp8-fast" },
+  "vars": { "TEXT_MODEL": "@cf/meta/llama-3.1-8b-instruct-fp8-fast", "MARGIN_BPS": 3500 },
   "routes": [{ "pattern": "omyla.uwaaa.com", "custom_domain": true }]
 }
