@@ -12,6 +12,7 @@ The product landing page is at https://omyla.uwaaa.com/. The web app preview liv
 - The intended resident UI is a single small button on the page; the action panel and drawing surface appear only while the user opens it. The larger public site remains an explanatory preview.
 - `desktop/` is a local Electron shell with one button above the desktop and a short request panel; it hands text to the public preview for review. Packaged Windows/macOS builds are configured to start at login, with an opt-out in the panel. An installer is not yet supplied. It does not yet capture the screen or control other applications. See `desktop/README.md`.
 - Agent responses are proposals only. The service cannot read email, alter code, browse the computer, publish, or execute tools. There is no simulated approval button.
+- Goal records now retain provider-reported token usage when present and a versioned 35% gross margin calculation for internal planning. The public preview does not bill users. Missing usage is never treated as zero cost; see `docs/usage-billing.md`.
 
 ## Deployment
 
