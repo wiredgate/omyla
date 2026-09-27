@@ -22,7 +22,19 @@ function classify(points) {
   const first = points[0], tip = points.at(-1);
   const diagonal = Math.hypot(box.width * innerWidth, box.height * innerHeight);
   const close = Math.hypot((first.x - tip.x) * innerWidth, (first.y - tip.y) * innerHeight);
-  return { kind: points.length > 6 && diagonal > 30 && close < Math.max(24, diagonal * .2) ? 'circle' : 'line', tip, box };
+  if (points.length > 6 && diagonal > 30 && close < Math.max(24, diagonal * .2)) return { kind: 'circle', tip, box };
+  if (points.length > 6 && diagonal > 35) {
+    let far = 0;
+    for (let i = 1; i < points.length; i++) {
+      const current = Math.hypot((points[i].x - first.x) * innerWidth, (points[i].y - first.y) * innerHeight);
+      const best = Math.hypot((points[far].x - first.x) * innerWidth, (points[far].y - first.y) * innerHeight);
+      if (current > best) far = i;
+    }
+    const apex = points[far];
+    const retreat = Math.hypot((apex.x - tip.x) * innerWidth, (apex.y - tip.y) * innerHeight);
+    if (far > points.length * .55 && far < points.length - 2 && retreat > 12 && retreat < diagonal * .45) return { kind: 'arrow', tip: apex, box };
+  }
+  return { kind: 'line', tip, box };
 }
 canvas.addEventListener('pointerdown', event => {
   canvas.setPointerCapture(event.pointerId);
