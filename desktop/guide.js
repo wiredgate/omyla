@@ -12,4 +12,10 @@ window.omylaGuide.onStep(({ step, index, total }) => {
   const top = clamp(y + 40, 8, Math.max(8, innerHeight - 112));
   caption.style.left = `${left}px`; caption.style.top = `${top}px`;
   target.hidden = false; caption.hidden = false;
+  if ('speechSynthesis' in window && 'SpeechSynthesisUtterance' in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(step.text);
+    utterance.lang = 'ja-JP'; utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
+  }
 });
