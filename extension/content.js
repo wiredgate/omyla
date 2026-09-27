@@ -9,17 +9,50 @@
     .panel{position:fixed;right:16px;bottom:76px;width:min(370px,calc(100vw - 32px));padding:15px;border:1px solid #455953;border-radius:16px;background:#171e1eee;color:#edf4ee;box-shadow:0 12px 45px #0008;font:13px/1.5 system-ui,sans-serif;pointer-events:auto;backdrop-filter:blur(16px)}.panel[hidden]{display:none}
     .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.head b{font-size:17px;letter-spacing:-.04em}button{cursor:pointer;border:1px solid #5a6b62;border-radius:8px;background:#29352f;color:#edf4ee;padding:7px 10px;font:inherit}button.on{background:#d4f5d9;color:#14241b}button:hover{border-color:#d4f5d9}textarea{width:100%;height:64px;resize:vertical;border:1px solid #56645d;border-radius:8px;background:#101a16;color:#fff;padding:9px;font:inherit}.row{display:flex;gap:6px;margin:8px 0}.row label{margin-left:auto;align-self:center}.row select{background:#29352f;color:#fff;border:1px solid #56645d;border-radius:6px;padding:4px}.preview{min-height:22px;color:#c9eecf;margin:8px 0;overflow-wrap:anywhere}.send{width:100%;background:#d4f5d9;color:#14241b;font-weight:700}
     .guide-ring{position:fixed;width:34px;height:34px;border:3px solid #c8f395;border-radius:50%;box-shadow:0 0 0 5px #c8f39555,0 0 18px #203f1d;transform:translate(-50%,-50%);pointer-events:none}.guide-ring[hidden],.guide-card[hidden]{display:none}.guide-card{position:fixed;width:min(330px,calc(100vw - 24px));max-height:min(310px,55vh);overflow:auto;padding:14px;border:1px solid #b5eabc;border-radius:14px;background:#19251ff5;color:#f2fff1;box-shadow:0 12px 35px #000a;font:13px/1.5 system-ui,sans-serif;pointer-events:auto}.guide-card p{white-space:pre-wrap;overflow-wrap:anywhere}.guide-actions{display:flex;gap:8px;justify-content:flex-end}.guide-actions button{background:#d4f5d9;color:#14241b}
-  </style><canvas></canvas><button class="launcher" id="launcher" aria-label="OMYLAを開く" aria-expanded="false">O</button><div class="panel" id="panel" role="dialog" aria-label="OMYLAの画面指示" hidden><div class="head"><b>OMYLA<span style="color:#b7e7b8">.</span></b><button id="close" aria-label="閉じる">×</button></div><div class="row"><button id="point" class="on">指す</button><button id="draw">描く</button><button id="clear">消す</button><label>最後の線 <select id="kind" disabled><option value="auto">自動</option><option value="circle">丸</option><option value="arrow">矢印</option><option value="line">線</option></select></label></div><div class="preview" id="preview">ページ上をクリックするか、描いて対象を選んでね。</div><textarea id="goal" maxlength="1500" placeholder="ここをどうしたい？"></textarea><button id="send" class="send">このページで教えて</button><button id="handoff" style="margin-top:8px;width:100%">詳細を開く ↗</button></div><div id="guide-ring" class="guide-ring" hidden></div><div id="guide-card" class="guide-card" role="status" hidden><b id="guide-heading"></b><p id="guide-text"></p><div class="guide-actions"><button id="guide-speak" aria-label="この手順を読み上げる">🔊</button><button id="guide-prev">戻る</button><button id="guide-next">次へ</button><button id="guide-stop">閉じる</button></div></div>`;
+  </style><canvas></canvas><button class="launcher" id="launcher" aria-label="OMYLAを開く" aria-expanded="false">O</button><div class="panel" id="panel" role="dialog" aria-label="OMYLAの画面指示" hidden><div class="head"><b>OMYLA<span style="color:#b7e7b8">.</span></b><button id="close" aria-label="閉じる">×</button></div><div class="row"><button id="point" class="on">指す</button><button id="draw">描く</button><button id="clear">消す</button><label>最後の線 <select id="kind" disabled><option value="auto">自動</option><option value="circle">丸</option><option value="arrow">矢印</option><option value="line">線</option></select></label></div><div class="preview" id="preview">ページ上をクリックするか、描いて対象を選んでね。</div><div class="row"><button id="mic" type="button" aria-pressed="false">🎙 話す</button><span id="mic-status" role="status" style="align-self:center;color:#c9eecf"></span></div><textarea id="goal" maxlength="1500" placeholder="ここをどうしたい？"></textarea><button id="send" class="send">このページで教えて</button><button id="handoff" style="margin-top:8px;width:100%">詳細を開く ↗</button></div><div id="guide-ring" class="guide-ring" hidden></div><div id="guide-card" class="guide-card" role="status" hidden><b id="guide-heading"></b><p id="guide-text"></p><div class="guide-actions"><button id="guide-speak" aria-label="この手順を読み上げる">🔊</button><button id="guide-prev">戻る</button><button id="guide-next">次へ</button><button id="guide-stop">閉じる</button></div></div>`;
   document.documentElement.append(host);
   const $ = selector => shadow.querySelector(selector);
   const canvas = $('canvas'), ctx = canvas.getContext('2d');
   let mode = 'point', marks = [], strokes = [], active = false, stroke = [], override = 'auto';
   let guide = [], guideIndex = 0, guideMarks = [], requestId = 0;
-  function setOpen(open) { host.classList.toggle('open', open); $('#panel').hidden = !open; $('#launcher').setAttribute('aria-expanded', String(open)); $('#launcher').setAttribute('aria-label', open ? 'OMYLAを閉じる' : 'OMYLAを開く'); if (open) redraw(); }
+  let micRecognition = null, micTimer = null;
+  function setOpen(open) { if (!open && micRecognition) micRecognition.abort(); host.classList.toggle('open', open); $('#panel').hidden = !open; $('#launcher').setAttribute('aria-expanded', String(open)); $('#launcher').setAttribute('aria-label', open ? 'OMYLAを閉じる' : 'OMYLAを開く'); if (open) redraw(); }
   $('#launcher').onclick = () => setOpen(!host.classList.contains('open'));
   chrome.runtime.onMessage.addListener(message => { if (message?.type === 'omyla-toggle') setOpen(!host.classList.contains('open')); });
   $('#close').onclick = () => setOpen(false);
   shadow.addEventListener('keydown', event => { if (event.key === 'Escape') { setOpen(false); $('#launcher').focus(); } });
+  $('#mic').onclick = () => {
+    if (micRecognition) { micRecognition.stop(); return; }
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) { $('#mic-status').textContent = 'このブラウザは音声入力に対応していないよ。'; return; }
+    const recognition = new Recognition();
+    recognition.lang = navigator.language || 'ja-JP';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    micRecognition = recognition;
+    $('#mic').textContent = '■ 停止';
+    $('#mic').setAttribute('aria-pressed', 'true');
+    $('#mic-status').textContent = '聞いているよ…';
+    recognition.onresult = event => {
+      if (micRecognition !== recognition) return;
+      const spoken = [...event.results].filter(result => result.isFinal).map(result => result[0]?.transcript || '').join(' ').trim();
+      if (spoken) {
+        $('#goal').value = [$('#goal').value.trim(), spoken].filter(Boolean).join(' ').slice(0, 1500);
+        $('#mic-status').textContent = '文字にしたよ。確認してから送ってね。';
+        $('#goal').focus();
+      }
+    };
+    recognition.onerror = event => { if (micRecognition === recognition) $('#mic-status').textContent = event.error === 'not-allowed' ? 'マイクの利用が許可されていないよ。' : '音声を認識できなかった。'; };
+    recognition.onend = () => {
+      if (micRecognition !== recognition) return;
+      micRecognition = null; clearTimeout(micTimer); micTimer = null;
+      $('#mic').textContent = '🎙 話す'; $('#mic').setAttribute('aria-pressed', 'false');
+      if ($('#mic-status').textContent === '聞いているよ…') $('#mic-status').textContent = '音声が聞き取れなかった。';
+    };
+    try { recognition.start(); micTimer = setTimeout(() => recognition.stop(), 15000); }
+    catch { recognition.onend(); $('#mic-status').textContent = '音声入力を開始できなかった。'; }
+  };
   const pos = event => ({ x: Math.max(0, Math.min(1, event.clientX / innerWidth)), y: Math.max(0, Math.min(1, event.clientY / innerHeight)) });
   const label = node => {
     if (!node || node.closest('input,textarea,select,[contenteditable],form')) return '';
