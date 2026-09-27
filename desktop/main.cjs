@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, screen, shell, desktopCapturer } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const { spawn } = require('node:child_process');
 
 const compact = { width: 64, height: 64 };
 const expanded = { width: 420, height: 400 };
@@ -33,6 +34,30 @@ function place(size) {
   return { width: size.width, height: size.height,
     x: Math.round(Math.max(area.x, Math.min(area.x + area.width - size.width, anchor.x - size.width))),
     y: Math.round(Math.max(area.y, Math.min(area.y + area.height - size.height, anchor.y - size.height))) };
+}
+
+function movePhysicalCursor(point) {
+  if (process.platform !== 'win32') return Promise.resolve(false);
+  const x = Math.round(point.x), y = Math.round(point.y);
+  if (![x, y].every(Number.isSafeInteger)) return Promise.resolve(false);
+  const script = `Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class OmylaCursor {
+  [DllImport("user32.dll", SetLastError=true)]
+  public static extern bool SetPhysicalCursorPos(int x, int y);
+}
+'@
+if (-not [OmylaCursor]::SetPhysicalCursorPos(${x}, ${y})) { exit 1 }`;
+  return new Promise(resolve => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand',
+      Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true });
+    let done = false;
+    const finish = result => { if (!done) { done = true; resolve(result); } };
+    const timer = setTimeout(() => { child.kill(); finish(false); }, 5000);
+    child.once('error', () => { clearTimeout(timer); finish(false); });
+    child.once('close', code => { clearTimeout(timer); finish(code === 0); });
+  });
 }
 
 function create() {
@@ -112,6 +137,17 @@ ipcMain.handle('overlay:ink-finish', (event, marks) => {
   }
   inkWin.close();
   return true;
+});
+ipcMain.handle('overlay:move-cursor', async event => {
+  if (!authorized(event) || inkWin || process.platform !== 'win32' || !selectedCanvas || !selectedMarks.length) return false;
+  const display = screen.getAllDisplays().find(item => String(item.id) === selectedCanvas.displayId);
+  if (!display || display.bounds.x !== selectedCanvas.originX || display.bounds.y !== selectedCanvas.originY ||
+      display.bounds.width !== selectedCanvas.width || display.bounds.height !== selectedCanvas.height) return false;
+  const tip = selectedMarks.at(-1).tip;
+  if (![tip.x, tip.y].every(n => Number.isFinite(n) && n >= 0 && n <= 1)) return false;
+  const dipPoint = { x: display.bounds.x + Math.min(display.bounds.width - 1, Math.floor(tip.x * display.bounds.width)),
+    y: display.bounds.y + Math.min(display.bounds.height - 1, Math.floor(tip.y * display.bounds.height)) };
+  return movePhysicalCursor(screen.dipToScreenPoint(dipPoint));
 });
 ipcMain.handle('overlay:open-goal', async (event, value) => {
   if (!authorized(event) || typeof value !== 'string') return false;
