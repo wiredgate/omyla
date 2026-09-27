@@ -92,7 +92,14 @@ function normalizeContext(value) {
     tip: x?.tip ? { x: coordinate(x.tip.x), y: coordinate(x.tip.y) } : undefined
   })) : [];
   const files = Array.isArray(value.files) ? value.files.slice(0, 5).map(x => ({ name: String(x?.name || '').slice(0, 100), type: String(x?.type || '').slice(0, 50) })) : [];
-  return { surface, targets, marks, files };
+  const canvas = surface.kind === 'desktop' && value.canvas?.kind === 'monitor' ? {
+    kind: 'monitor', displayId: String(value.canvas.displayId || '').slice(0, 40),
+    width: Math.min(16000, Math.max(1, Math.round(Number(value.canvas.width) || 1))),
+    height: Math.min(16000, Math.max(1, Math.round(Number(value.canvas.height) || 1))),
+    scaleFactor: Math.min(8, Math.max(0.5, Number(value.canvas.scaleFactor) || 1)),
+    capturedAt: Number.isFinite(Date.parse(value.canvas.capturedAt)) ? new Date(value.canvas.capturedAt).toISOString() : undefined
+  } : undefined;
+  return { surface, canvas, targets, marks, files };
 }
 
 async function runAgent(env, agent, task, context, model) {
