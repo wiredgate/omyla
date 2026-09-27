@@ -1,0 +1,7 @@
+# Teaching on the canvas
+
+A teaching request can arrive as text or browser speech recognition. The same goal enters the Agent orchestrator. For a demo-page surface, the Web preview now displays each completed Agent explanation as an anchored ring and card over the demo page. Anchors use the user's point, arrow tip, line endpoint, or circle center; without a mark, the preview points to its example card. The user advances or stops the explanation and can ask the browser to read it aloud. Text is inserted as text, never HTML.
+
+This is an explanatory overlay on the OMYLA demo page. It does not see a real desktop screen, identify an arbitrary button from pixels, click other applications, or claim to have performed a task. Desktop handoffs currently contain geometric marks and text, so they intentionally do not replay their marks on the unrelated demo page.
+
+The next version of real-screen teaching needs: explicit screen capture permission; a recent frame ID and display geometry; a vision-capable model that returns a constrained guide step with anchor and confidence; local grounding or rejection on a changed frame; a click-through transparent desktop annotation window with a small persistent Stop control; and a separate task-scoped Computer Use grant before any click or typing. The teaching channel may draw without granting input-control capabilities. For mobile, use OS-supported in-app guidance or platform-permitted overlay/accessibility APIs rather than assuming desktop privileges.
