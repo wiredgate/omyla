@@ -96,8 +96,10 @@ function normalizeContext(value) {
     kind: 'monitor', displayId: String(value.canvas.displayId || '').slice(0, 40),
     width: Math.min(16000, Math.max(1, Math.round(Number(value.canvas.width) || 1))),
     height: Math.min(16000, Math.max(1, Math.round(Number(value.canvas.height) || 1))),
+    originX: Math.max(-16000, Math.min(16000, Math.round(Number(value.canvas.originX) || 0))),
+    originY: Math.max(-16000, Math.min(16000, Math.round(Number(value.canvas.originY) || 0))),
     scaleFactor: Math.min(8, Math.max(0.5, Number(value.canvas.scaleFactor) || 1)),
-    capturedAt: Number.isFinite(Date.parse(value.canvas.capturedAt)) ? new Date(value.canvas.capturedAt).toISOString() : undefined
+    observedAt: Number.isFinite(Date.parse(value.canvas.observedAt)) ? new Date(value.canvas.observedAt).toISOString() : undefined
   } : undefined;
   return { surface, canvas, targets, marks, files };
 }
