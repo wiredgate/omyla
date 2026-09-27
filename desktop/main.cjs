@@ -13,6 +13,36 @@ let selectedDisplayId;
 let inkWin;
 let selectedMarks = [];
 let selectedCanvas;
+let guideWin;
+let guideSteps = [];
+let guideIndex = 0;
+let guideDisplay;
+let guideBusy = false;
+function stopGuide() {
+  guideSteps = []; guideDisplay = undefined; guideIndex = 0;
+  if (guideWin && !guideWin.isDestroyed()) guideWin.close();
+  guideWin = undefined;
+}
+function renderGuide() {
+  if (!guideWin || guideWin.isDestroyed()) return;
+  guideWin.webContents.send('guide:step', { step: guideSteps[guideIndex], index: guideIndex, total: guideSteps.length });
+}
+function startGuide(display, steps) {
+  stopGuide();
+  guideDisplay = { id: display.id, bounds: { ...display.bounds } };
+  guideSteps = steps; guideIndex = 0;
+  guideWin = new BrowserWindow({ ...display.bounds, frame: false, transparent: true, alwaysOnTop: true,
+    skipTaskbar: true, focusable: false, resizable: false, movable: false, hasShadow: false,
+    backgroundColor: '#00000000', show: false,
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'guide-preload.cjs') } });
+  guideWin.setIgnoreMouseEvents(true, { forward: true });
+  guideWin.webContents.on('will-navigate', event => event.preventDefault());
+  guideWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  guideWin.webContents.once('did-finish-load', () => { if (guideWin && !guideWin.isDestroyed()) { renderGuide(); guideWin.showInactive(); } });
+  guideWin.on('closed', () => { guideWin = undefined; });
+  guideWin.loadFile(path.join(__dirname, 'guide.html'));
+}
+
 
 function configureLogin(enabled) {
   if (!app.isPackaged || !['win32', 'darwin'].includes(process.platform)) return false;
@@ -102,9 +132,10 @@ ipcMain.handle('overlay:close', event => {
 });
 ipcMain.handle('overlay:displays', event => authorized(event) ? { selected: String(activeDisplay().id), displays: screen.getAllDisplays().map(displayInfo) } : null);
 ipcMain.handle('overlay:select-display', (event, id) => {
-  if (!authorized(event) || inkWin || typeof id !== 'string') return false;
+  if (!authorized(event) || inkWin || guideBusy || typeof id !== 'string') return false;
   const display = screen.getAllDisplays().find(item => String(item.id) === id);
   if (!display) return false;
+  stopGuide();
   selectedDisplayId = display.id;
   const area = display.workArea;
   anchor = { x: area.x + area.width - 12, y: area.y + area.height - 12 };
@@ -113,8 +144,9 @@ ipcMain.handle('overlay:select-display', (event, id) => {
   return true;
 });
 ipcMain.handle('overlay:preview-screen', async event => {
-  if (!authorized(event) || inkWin) return null;
+  if (!authorized(event) || inkWin || guideBusy) return null;
   const displayId = String(activeDisplay().id);
+  if (guideWin && !guideWin.isDestroyed()) guideWin.hide();
   win.hide();
   try {
     await new Promise(resolve => setTimeout(resolve, 150));
@@ -122,10 +154,56 @@ ipcMain.handle('overlay:preview-screen', async event => {
     const source = sources.find(item => item.display_id === displayId);
     if (!source || source.thumbnail.isEmpty()) return null;
     return { displayId, image: source.thumbnail.toDataURL() };
-  } finally { if (win && !win.isDestroyed()) win.show(); }
+  } finally { if (win && !win.isDestroyed()) win.show(); if (guideWin && !guideWin.isDestroyed()) guideWin.showInactive(); }
 });
+ipcMain.handle('overlay:guide', async (event, value) => {
+  if (!authorized(event) || inkWin || guideBusy || typeof value !== 'string') return { error: 'busy' };
+  const goal = value.trim();
+  if (!goal || goal.length > 800) return { error: 'invalid_goal' };
+  const display = activeDisplay();
+  const displayId = String(display.id);
+  guideBusy = true;
+  stopGuide();
+  win.hide();
+  try {
+    await new Promise(resolve => setTimeout(resolve, 180));
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1280, height: 720 } });
+    const source = sources.find(item => item.display_id === displayId);
+    if (!source || source.thumbnail.isEmpty()) return { error: 'capture_failed' };
+    const jpeg = source.thumbnail.toJPEG(72);
+    if (jpeg.length > 740000) return { error: 'image_too_large' };
+    const image = `data:image/jpeg;base64,${jpeg.toString('base64')}`;
+    win.show();
+    const response = await fetch('https://omyla.uwaaa.com/api/guide', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal, image, marks: selectedCanvas?.displayId === displayId ? selectedMarks : [] }),
+      signal: AbortSignal.timeout(60000)
+    });
+    const result = await response.json();
+    if (!response.ok) return { error: result.error || 'service_unavailable', message: result.message };
+    const current = screen.getAllDisplays().find(item => String(item.id) === displayId);
+    if (!current || current.bounds.x !== display.bounds.x || current.bounds.y !== display.bounds.y ||
+        current.bounds.width !== display.bounds.width || current.bounds.height !== display.bounds.height)
+      return { error: 'display_changed' };
+    const steps = result.steps;
+    if (!Array.isArray(steps) || steps.length < 1 || steps.length > 4 || !steps.every(step =>
+      typeof step.text === 'string' && step.text.length <= 130 && ['circle', 'arrow'].includes(step.kind) &&
+      [step.x, step.y].every(n => typeof n === 'number' && n >= 0 && n <= 1))) return { error: 'invalid_guide' };
+    startGuide(current, steps);
+    return { count: steps.length, model: String(result.model || '').slice(0, 100) };
+  } catch { return { error: 'network_error' }; }
+  finally { guideBusy = false; if (win && !win.isDestroyed()) win.show(); }
+});
+ipcMain.handle('overlay:next-guide', event => {
+  if (!authorized(event) || !guideSteps.length) return { remaining: 0 };
+  guideIndex++;
+  if (guideIndex >= guideSteps.length) { stopGuide(); return { remaining: 0 }; }
+  renderGuide(); return { remaining: guideSteps.length - guideIndex };
+});
+ipcMain.handle('overlay:stop-guide', event => { if (!authorized(event)) return false; stopGuide(); return true; });
 ipcMain.handle('overlay:draw', event => {
-  if (!authorized(event) || inkWin) return false;
+  if (!authorized(event) || inkWin || guideBusy) return false;
+  stopGuide();
   const display = activeDisplay();
   const bounds = display.bounds;
   inkWin = new BrowserWindow({ ...bounds, frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true,
