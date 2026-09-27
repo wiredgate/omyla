@@ -22,3 +22,9 @@ The estimates currently cover inference for the listed model only. Storage, comp
 For a new usage-based Stripe integration, the current Stripe guidance routes usage rating through Metronome, with Stripe collecting invoices. Evaluate service fees and complexity before choosing it over a smaller prepaid credit system. No Stripe keys or customer/payment methods are configured in this repository.
 
 Published rates at the time of this draft: [Cloudflare Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/), [OpenAI API pricing](https://developers.openai.com/api/docs/pricing). Recheck them before enabling billing.
+
+## Operator model routing
+
+The operator sets `TEXT_MODEL` as the fallback and optional `AGENT_MODELS` as a JSON string keyed by `kai`, `mia`, or `emma` in `wrangler.jsonc`. Example: `"AGENT_MODELS": "{\\"kai\\":\\"@cf/meta/llama-3.1-8b-instruct-fp8-fast\\"}"`. Agent names and roles do not change when models change. Only configured model IDs in the rate catalog are accepted. Invalid configuration returns 503 before consuming a demo quota. The operator alone can change routing by deploying configuration; the browser cannot choose a model. Each Goal stores the exact per-Agent model assignment and prices each model separately.
+
+OpenAI routes require both a Worker `OPENAI_API_KEY` secret and `PAID_MODELS_ENABLED` set to the literal string `true`. The public deployment keeps this flag `false` and all agents on Cloudflare. Enabling it on a public demo can incur provider costs without customer payment; add authenticated users and spending limits first. Cloudflare model routing remains available without that flag.
