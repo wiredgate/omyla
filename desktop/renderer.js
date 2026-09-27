@@ -14,4 +14,4 @@ document.getElementById('display').onchange = async event => { if (!await window
 document.getElementById('draw-screen').onclick = () => window.omyla.draw();
 window.omyla.onMarksUpdated(count => { document.getElementById('marks-status').textContent = `${count}件の画面指示`; });
 refreshDisplays();
-document.getElementById('preview-screen').onclick = async () => { const image = document.getElementById('screen-preview'); image.hidden = true; image.removeAttribute('src'); const result = await window.omyla.previewScreen(); if (result?.image) { image.src = result.image; image.hidden = false; } };
+document.getElementById('preview-screen').onclick = async () => { const image = document.getElementById('screen-preview'); image.hidden = true; image.removeAttribute('src'); try { const result = await window.omyla.previewScreen(); if (result?.image) { image.src = result.image; image.hidden = false; } else document.getElementById('marks-status').textContent = '画面を取得できない'; } catch { document.getElementById('marks-status').textContent = '画面の取得が許可されていない'; } };
