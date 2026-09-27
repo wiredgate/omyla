@@ -30,15 +30,19 @@ export function modelUsage(response) {
   return { inputTokens: input, outputTokens: output, cachedInputTokens: Number.isSafeInteger(cached) && cached >= 0 && cached <= input ? cached : 0 };
 }
 
-export function previewPricing(assignments, model, requestedMarginBps = DEFAULT_MARGIN_BPS) {
+export function previewPricing(assignments, requestedMarginBps = DEFAULT_MARGIN_BPS) {
   const marginBps = Number.isInteger(requestedMarginBps) && requestedMarginBps >= 0 && requestedMarginBps <= 9000 ? requestedMarginBps : DEFAULT_MARGIN_BPS;
-  const perCallCap = providerCostMicros(model, 16000, model.startsWith('gpt-6-') ? 1200 : 180);
+  const estimatedProviderCapMicros = assignments.reduce((total, assignment) => {
+    const model = assignment.model;
+    const cap = providerCostMicros(model, 16000, model.startsWith('gpt-6-') ? 1200 : 180);
+    return total === null || cap === null ? null : total + cap;
+  }, 0);
   return {
     currency: 'USD', rateVersion: RATE_VERSION, marginBps,
     status: 'preview_unbilled',
     // An engineering estimate for the current short preview call; not a paid authorization.
-    estimatedProviderCapMicros: perCallCap === null ? null : perCallCap * assignments.length,
-    estimatedCustomerCapMicros: perCallCap === null ? null : customerPriceMicros(perCallCap * assignments.length, marginBps),
+    estimatedProviderCapMicros,
+    estimatedCustomerCapMicros: estimatedProviderCapMicros === null ? null : customerPriceMicros(estimatedProviderCapMicros, marginBps),
     actualProviderCostMicros: null, suggestedCustomerPriceMicros: null,
     meteringComplete: false
   };
