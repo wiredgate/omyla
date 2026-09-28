@@ -22,3 +22,6 @@
 
 /* Render the native loop over its exact first frame. */
 .hero-image{background-image:url('/media/crew-loop-poster.jpg')}.hero-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 43%;pointer-events:none}.hero-shade{z-index:0}.hero-copy,.scene-note,.scroll-cue{z-index:1}@media(prefers-reduced-motion:reduce){.hero-video{display:none!important}}
+
+/* Individual Crew films. Keep each original portrait as a still fallback. */
+.member-portrait{position:relative;overflow:hidden;animation:none!important;transform:none!important;will-change:auto}.member.is-active .member-portrait{animation:none!important;transform:none!important}.member-video{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover;pointer-events:none}@media(prefers-reduced-motion:reduce){.member-video{display:none!important}}
