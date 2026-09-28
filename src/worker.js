@@ -287,6 +287,37 @@ async function transcribeResponse(request, env, url) {
   }
 }
 
+async function askResponse(request, env, url) {
+  if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
+  const origin = request.headers.get('Origin');
+  if (origin && origin !== url.origin) return json({ error: 'origin_denied' }, 403);
+  if (!request.headers.get('content-type')?.startsWith('application/json')) return json({ error: 'json_required' }, 415);
+  if (Number(request.headers.get('content-length')) > 5000) return json({ error: 'too_large' }, 413);
+  let body;
+  try { const raw = await request.text(); if (raw.length > 5000) return json({ error: 'too_large' }, 413); body = JSON.parse(raw); }
+  catch { return json({ error: 'invalid_json' }, 400); }
+  const question = typeof body?.question === 'string' ? body.question.trim() : '';
+  if (!question || question.length > 1500) return json({ error: 'invalid_question' }, 400);
+  const model = String(env.TEXT_MODEL || '@cf/meta/llama-3.1-8b-instruct-fp8-fast');
+  const quota = env.QUOTA.getByName('general-preview');
+  if (!await quota.reserve(request.headers.get('CF-Connecting-IP') || 'unknown'))
+    return json({ error: 'daily_limit', message: '今日の利用枠に達した。' }, 429);
+  const eventId = crypto.randomUUID();
+  let state = 'error', usage = null;
+  try {
+    const result = await runModel(env, model,
+      'あなたはOMYLAのAIクルー。PC操作から学問・創作まで、質問に日本語で具体的かつ正確に答える。現在の画面画像は提供されていない。見ていない画面を見たと主張しない。最新情報や出典を要する質問は未検証の事実を断定せず、必要なら確認方法を示す。知らないときはそう言う。外部操作を実行したと主張しない。', question, 500);
+    usage = modelUsage(result);
+    const answer = String(result.text || '').trim().slice(0, 1600);
+    if (!answer) return json({ error: 'empty_answer' }, 502);
+    state = 'done';
+    return json({ answer, model });
+  } catch { return json({ error: 'answer_unavailable', message: '回答を取得できなかった。' }, 503); }
+  finally {
+    try { await quota.recordPreviewUsage({ id: eventId, kind: 'general', model, state, usage }); } catch {}
+  }
+}
+
 async function browserGuideResponse(request, env) {
   if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   const origin = request.headers.get('Origin');
@@ -329,6 +360,7 @@ export default {
     if (url.pathname === '/api/browser-guide') return browserGuideResponse(request, env);
     if (url.pathname === '/api/guide' || url.pathname === '/api/observe') return guideResponse(request, env, url);
     if (url.pathname === '/api/transcribe') return transcribeResponse(request, env, url);
+    if (url.pathname === '/api/ask') return askResponse(request, env, url);
     if (url.pathname !== '/api/goals') return env.ASSETS.fetch(request);
     const existing = sessionId(request);
     const id = existing || crypto.randomUUID();

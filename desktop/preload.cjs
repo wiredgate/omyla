@@ -1,12 +1,17 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('omyla', {
   toggle: () => ipcRenderer.invoke('overlay:toggle'),
+  dragStart: () => ipcRenderer.invoke('overlay:drag-start'),
+  dragMove: point => ipcRenderer.invoke('overlay:drag-move', point),
+  dragEnd: () => ipcRenderer.invoke('overlay:drag-end'),
   close: () => ipcRenderer.invoke('overlay:close'),
   displays: () => ipcRenderer.invoke('overlay:displays'),
   selectDisplay: id => ipcRenderer.invoke('overlay:select-display', String(id)),
   previewScreen: () => ipcRenderer.invoke('overlay:preview-screen'),
   draw: () => ipcRenderer.invoke('overlay:draw'),
   guide: value => ipcRenderer.invoke('overlay:guide', typeof value === 'string' ? value.slice(0, 800) : ''),
+  ask: value => ipcRenderer.invoke('overlay:ask', typeof value === 'string' ? value.slice(0, 1500) : ''),
+  observe: value => ipcRenderer.invoke('overlay:observe', typeof value === 'string' ? value.slice(0, 800) : ''),
   transcribe: bytes => ipcRenderer.invoke('overlay:transcribe', bytes),
   nextGuide: () => ipcRenderer.invoke('overlay:next-guide'),
   executeGuideClick: () => ipcRenderer.invoke('overlay:execute-guide-click'),

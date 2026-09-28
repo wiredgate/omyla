@@ -1,23 +1,15 @@
-# OMYLA Desktop shell
+# OMYLA Windows Presence · Phase 1
 
-An early Windows/macOS desktop shell for the single-button Presence. It is source code, not a signed installer.
+Portable Windows x64 app. It runs above other windows and can start at login after the extracted folder is placed at a stable location. This is an unsigned preview executable, not an installer.
 
-## Run locally
+## Run
 
-Requires Node.js and npm on the computer where the button should appear:
+Download the `OMYLA-Windows-Preview` artifact from the Windows build workflow, extract the whole ZIP, and run `OMYLA.exe`. For source development, run `npm install && npm start` inside `desktop/` on Windows.
 
-```bash
-cd desktop
-npm install
-npm start
-```
+Mia stays on top. Drag her with a mouse or finger; she struggles while held and reacts when released. Tap or click her to open the panel. In compact mode, Windows native window shaping passes input outside her hit region to the app beneath. The expanded panel is interactive; close it to return to normal work. Ctrl+Shift+O toggles the panel. The login startup checkbox is available in a packaged build.
 
-One 48px button stays above the desktop. Click it for a short request panel, enter an instruction, and press **OMYLAで確認**. Your normal browser opens `omyla.uwaaa.com/app/` with the text filled in; you review and submit it there. Escape closes the panel. Ctrl/Cmd+Shift+O opens or closes the panel from another app and, when opening, targets the display nearest the current pointer. This shortcut may be unavailable if another app owns it. **終了** quits the app. When packaged as an installed Windows or macOS app, it starts at login by default; the expanded panel lets you turn that off. `npm start` is development mode and does not register login startup. There is no installer or signed binary yet.
+The drawing tool temporarily takes pointer input while drawing on one chosen monitor. Finish or cancel to return input to underlying apps. Finished strokes stay visible in a transparent, input-transparent window; their small pink handles can be dragged with mouse or touch, or removed with a right click. The guide overlay passes input through. A disconnected display removes its drawing until a new drawing is made. The character and marks themselves remain intentional interactive targets.
 
-The panel lets you select one connected monitor and draw directly over it in a temporary transparent ink window. Point and line/circle geometry is attached to the browser handoff with that display's ID and dimensions. The separate **画像確認** button takes a one-time thumbnail of the chosen display after hiding the OMYLA panel, and displays it locally. This thumbnail is cleared when switching displays or sending the text instruction. No screen image or underlying app text is uploaded; selecting an unlabelled point only conveys geometry. The ink window temporarily intercepts pointer input on the selected display until you finish or cancel. This shell only captures a screen when the user presses **画像確認**; it does not continuously capture, inspect other apps through OCR, click or type in other apps, run in the background after quitting, or sync devices. On Windows, **カーソルを指示位置へ** moves the OS pointer to the last drawn mark on the selected monitor; it does not grant AI autonomous control. The button starts near the lower right of the primary display and moves to the selected monitor; OS behavior for always-on-top and transparent windows varies, especially on Linux Wayland. No credential is stored in this app. The handoff puts the user-authored instruction temporarily in the URL fragment, which the site immediately removes. Avoid private instructions in the public preview.
+Ask by text or microphone; answers are spoken aloud by Windows speech synthesis. Checking **この画面を見せる** takes a fresh screenshot only for that question and sends it to `/api/observe` for an answer and optional pointing marks. Otherwise text goes to `/api/ask`; microphone audio goes to `/api/transcribe`. These endpoints must be deployed on `omyla.uwaaa.com` before the app's live AI features work. The image preview button only shows a local thumbnail. The existing guide flow and deliberate one-click action remain separate.
 
-## Windows preview build
-
-GitHub Actions **Build Windows Presence Preview** packages the app for Windows x64. Its artifact is a ZIP containing a portable executable and support files; extract the entire folder to a stable location before running `OMYLA.exe`. The build is unsigned and may trigger Windows warnings. It is a preview build, not an installer, and has not been exercised on the user's Windows machine. Moving or deleting the folder after enabling login startup breaks that startup entry. The source alone is not an installed resident app.
-
-The Electron window loads only local files, keeps Node integration off and sandbox/context isolation on, blocks renderer navigation, and exposes narrowly scoped IPC actions. Future screen capture needs a separate on-demand OS permission, visible review of the selected image, an authenticated upload channel, and a capability-specific approval gate before computer use.
+This phase does not automatically read the screen in the background. Screen content is sent only on an explicit screen question or guide request. The build and code have not been exercised on a physical Windows touchscreen; verify native touch hit testing and mixed-DPI monitors on target hardware before release. The executable is unsigned and may show a Windows warning.

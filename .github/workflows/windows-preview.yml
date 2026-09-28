@@ -7,6 +7,11 @@ on:
     paths:
       - desktop/**
       - .github/workflows/windows-preview.yml
+  pull_request:
+    paths:
+      - desktop/**
+      - src/worker.js
+      - .github/workflows/windows-preview.yml
 
 permissions:
   contents: read
@@ -26,7 +31,7 @@ jobs:
           node-version: '24'
       - name: Install desktop dependencies
         working-directory: desktop
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Package portable Windows app
         working-directory: desktop
         run: npx --yes @electron/packager@20.0.0 . OMYLA --platform=win32 --arch=x64 --out=../dist --overwrite --asar
