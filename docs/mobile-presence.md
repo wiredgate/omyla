@@ -24,3 +24,7 @@
 - [Apple Picture in Picture](https://developer.apple.com/documentation/avkit/adopting-picture-in-picture-in-a-custom-player)
 - [Android MediaProjection](https://developer.android.com/media/grow/media-projection)
 - [Android overlay permission](https://developer.android.com/about/versions/11/privacy/permissions)
+
+## Live watch preview
+
+The user may explicitly start "見続ける" while the camera is open. A 24×18 downsampled luminance signature is compared locally every two seconds; after a meaningful change and a minimum twelve-second gap, one JPEG frame is sent to the existing observation API. There are at most three sends per watch session. Each consumes the same per-IP daily image quota (five) and global daily quota (thirty); the UI displays the number sent. The watch stops when closed, hidden, switched to a still image, speech recording begins, an API failure occurs, or its session limit is reached. The AI answers with speech; location marks are omitted on moving video because the target may already have moved. This is sparse event-triggered visual observation, not a streaming video model or continuous audio listener.

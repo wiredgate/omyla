@@ -12,10 +12,10 @@
   <section id="camera-mode" class="camera-mode" aria-label="カメラまたは画面画像を見せる" hidden><video id="camera-backdrop-video" class="camera-backdrop" autoplay playsinline muted hidden></video><img id="camera-backdrop-photo" class="camera-backdrop" alt="" aria-hidden="true" hidden>
     <header><strong>OMYLA<span class="dot">.</span> <small id="camera-mode-label">CAMERA / SCREEN</small></strong><button id="camera-close" type="button" aria-label="画像モードを閉じる">×</button></header>
     <div class="camera-frame" id="camera-frame"><video id="camera-video" autoplay playsinline muted></video><img id="camera-photo" alt="送信前に確認する画像" hidden><canvas id="camera-ink" aria-label="撮影画像に印を描く" hidden></canvas><div id="camera-ring" class="camera-ring" hidden></div></div>
-    <div class="camera-tools"><button id="screen-pick" type="button">画像を選ぶ</button><input id="screen-file" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="camera-capture" type="button" hidden>撮影する</button><button id="camera-retake" type="button" hidden>カメラで撮り直す</button><button id="camera-clear" type="button" hidden>印を消す</button></div>
+    <div class="camera-tools"><button id="screen-pick" type="button">画像を選ぶ</button><input id="screen-file" type="file" accept="image/jpeg,image/png,image/webp" hidden><button id="camera-capture" type="button" hidden>撮影する</button><button id="camera-watch" type="button" aria-pressed="false" hidden>◉ 見続ける</button><button id="camera-retake" type="button" hidden>カメラで撮り直す</button><button id="camera-clear" type="button" hidden>印を消す</button></div>
     <div class="camera-voice"><button id="camera-talk" type="button" aria-pressed="false">🎙 押して話す</button><label><input id="camera-read" type="checkbox" checked> 声で案内</label></div><textarea id="camera-goal" maxlength="800" placeholder="何を知りたい？　撮影した場所を指したり囲んだりして聞けるよ"></textarea>
     <button id="camera-ask" type="button" class="primary" hidden>いま見ているものを聞く</button>
     <div id="camera-guidance" class="camera-guidance" hidden><b id="camera-step-count"></b><p id="camera-step-text"></p><button id="camera-next" type="button">次へ →</button></div>
-    <p id="camera-status" role="status">カメラは開いている間だけ使うよ。質問した瞬間の画像だけAIへ送る。</p>
+    <p id="camera-status" role="status">「見続ける」は映像の変化を端末で検出し、最大3枚をAIへ送る。1人1日5回の画像利用枠を消費する。</p>
   </section>
-</main><script type="module" src="/app/app.js?v=camera-1"></script><script type="module" src="/app/camera.js?v=6"></script></body></html>
+</main><script type="module" src="/app/app.js?v=camera-1"></script><script type="module" src="/app/camera.js?v=7"></script></body></html>

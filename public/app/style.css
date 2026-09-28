@@ -53,3 +53,5 @@ button:not(.presence-toggle):not(.primary){background:#e9f2ebdf;color:#21382b;bo
 .camera-voice label{padding:9px 10px;border:1px solid #9bb5a1;border-radius:9px;background:#e9f2ebdf;color:#21382b;font-size:13px;white-space:nowrap}
 .camera-voice input{accent-color:#315f3e;vertical-align:middle}
 #camera-talk[aria-pressed=true]{background:#803535!important;color:#fff!important;border-color:#f1aaaa!important}
+
+#camera-watch[aria-pressed=true]{background:#803535!important;color:#fff!important;border-color:#f1aaaa!important}

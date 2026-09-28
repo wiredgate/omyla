@@ -4,11 +4,67 @@ const $ = id => document.getElementById(id);
 const modal = $('camera-mode'), frame = $('camera-frame'), video = $('camera-video'), photo = $('camera-photo');
 const ink = $('camera-ink'), context = ink.getContext('2d');
 const backdropVideo = $('camera-backdrop-video'), backdropPhoto = $('camera-backdrop-photo');
-let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], answer = '', index = -1, generation = 0, micState = null;
+let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], answer = '', index = -1, generation = 0, micState = null, watch = null;
 const status = message => { $('camera-status').textContent = message; };
 const clamp = n => Math.max(0, Math.min(1, n));
 
+function stopWatch(message = '') {
+  if (!watch) return;
+  clearInterval(watch.timer);
+  watch = null;
+  $('camera-watch').textContent = '◉ 見続ける';
+  $('camera-watch').setAttribute('aria-pressed', 'false');
+  if (message && !modal.hidden) status(message);
+}
+function frameSignature() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 24; canvas.height = 18;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(video, 0, 0, 24, 18);
+  const pixels = ctx.getImageData(0, 0, 24, 18).data;
+  const signature = new Uint8Array(24 * 18);
+  for (let i = 0; i < signature.length; i++)
+    signature[i] = Math.round((pixels[4*i] * .3 + pixels[4*i+1] * .59 + pixels[4*i+2] * .11) / 16);
+  return signature;
+}
+function changed(a, b) {
+  if (!a) return true;
+  let difference = 0;
+  for (let i = 0; i < a.length; i++) difference += Math.abs(a[i] - b[i]);
+  return difference / a.length >= 2.3;
+}
+async function watchFrame(session) {
+  if (watch !== session || session.busy || !stream || video.hidden || !video.videoWidth || document.hidden) return;
+  const signature = frameSignature();
+  if (!changed(session.last, signature) || Date.now() - session.lastSent < 12000) return;
+  const frameImage = encodeSnapshot(video, video.videoWidth, video.videoHeight);
+  if (!frameImage) return;
+  session.last = signature; session.lastSent = Date.now(); session.sent++; session.busy = true;
+  $('camera-watch').textContent = '■ 停止 · ' + session.sent + '/3';
+  status('映像の変化を読み取っているよ · ' + session.sent + '/3');
+  try {
+    const response = await fetch('/api/observe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal: session.goal, image: frameImage, marks: [], surface: 'camera' }),
+      signal: AbortSignal.timeout(45000)
+    });
+    const result = await response.json();
+    if (watch !== session || modal.hidden) return;
+    if (!response.ok) { stopWatch(result.message || '映像を読み取れなかった。'); return; }
+    if (typeof result.answer === 'string' && result.answer.trim()) {
+      answer = result.answer.trim(); steps = []; index = -1;
+      showObservation();
+    }
+    status('映像を見守っているよ · ' + session.sent + '/3回送信');
+  } catch {
+    if (watch === session) stopWatch('接続が切れたので見守りを止めたよ。');
+  } finally {
+    session.busy = false;
+    if (watch === session && session.sent >= 3) stopWatch('3回読み取ったので停止したよ。必要ならもう一度開始できる。');
+  }
+}
 function stopStream() {
+  stopWatch();
   stream?.getTracks().forEach(track => track.stop());
   stream = null; video.pause(); video.srcObject = null;
   backdropVideo.pause(); backdropVideo.srcObject = null; backdropVideo.hidden = true;
@@ -31,7 +87,7 @@ async function openCamera() {
   backdropPhoto.hidden = true; backdropPhoto.removeAttribute('src');
   photo.hidden = true; photo.removeAttribute('src'); ink.hidden = true; video.hidden = false;
   $('camera-capture').hidden = true; $('camera-retake').hidden = true;
-  $('camera-clear').hidden = true; $('camera-ask').hidden = true;
+  $('camera-clear').hidden = true; $('camera-ask').hidden = true; $('camera-watch').hidden = true;
   modal.hidden = false; status('カメラの許可を確認しているよ…');
   if (!navigator.mediaDevices?.getUserMedia) { status('このブラウザはカメラに対応していないよ。'); return; }
   try {
@@ -42,7 +98,7 @@ async function openCamera() {
     await video.play();
     if (token !== generation || modal.hidden) return;
     frame.style.setProperty('--camera-ratio', String(video.videoWidth / video.videoHeight || 1.333));
-    $('camera-capture').hidden = false; $('camera-ask').hidden = false;
+    $('camera-capture').hidden = false; $('camera-ask').hidden = false; $('camera-watch').hidden = false;
     status('ライブ映像を見ながら質問できるよ。聞いた瞬間の1枚だけAIへ送る。');
   } catch { if (token === generation) status('カメラを使えなかった。ブラウザの権限設定を確認してね。'); }
 }
@@ -66,7 +122,7 @@ function showSnapshot(data, ratio, kind) {
   frame.style.setProperty('--camera-ratio', String(ratio));
   video.hidden = true; photo.src = image; photo.hidden = false;
   $('camera-capture').hidden = true; $('camera-retake').hidden = false;
-  $('camera-clear').hidden = false; $('camera-ask').hidden = false;
+  $('camera-clear').hidden = false; $('camera-ask').hidden = false; $('camera-watch').hidden = true;
   ink.hidden = false; requestAnimationFrame(resizeInk);
 }
 function openImport() {
@@ -74,7 +130,7 @@ function openImport() {
   image = ''; strokes = []; stroke = null;
   backdropPhoto.hidden = true; backdropPhoto.removeAttribute('src');
   video.hidden = true; photo.hidden = true; photo.removeAttribute('src');
-  ink.hidden = true; $('camera-capture').hidden = true; $('camera-retake').hidden = true;
+  ink.hidden = true; $('camera-capture').hidden = true; $('camera-retake').hidden = true; $('camera-watch').hidden = true;
   $('camera-clear').hidden = true; $('camera-ask').hidden = true;
   modal.hidden = false;
   status('選んだ画像を確認し、指すか描いてからAIへ送れるよ。');
@@ -192,7 +248,22 @@ ink.addEventListener('pointerup', event => {
   strokes.push(stroke); strokes = strokes.slice(-8); stroke = null; drawInk();
 });
 ink.addEventListener('pointercancel', () => { stroke = null; drawInk(); });
+$('camera-watch').onclick = () => {
+  if (watch) { stopWatch('見守りを止めたよ。'); return; }
+  if (!stream || !video.videoWidth || modal.hidden) return;
+  const goal = $('camera-goal').value.trim();
+  if (!goal) { status('まず何を見守るか入力してね。'); $('camera-goal').focus(); return; }
+  if (micState) { status('録音を止めてから始めてね。'); return; }
+  clearGuide();
+  const session = { goal, sent: 0, busy: false, last: null, lastSent: 0, timer: null };
+  watch = session;
+  $('camera-watch').setAttribute('aria-pressed', 'true');
+  $('camera-watch').textContent = '■ 停止 · 0/3';
+  session.timer = setInterval(() => void watchFrame(session), 2000);
+  void watchFrame(session);
+};
 $('camera-ask').onclick = async () => {
+  if (watch) stopWatch();
   if (micState) { status('録音を止めてから質問してね。'); return; }
   const goal = $('camera-goal').value.trim();
   if (!goal) { $('camera-goal').focus(); return; }
@@ -268,6 +339,7 @@ async function stopMic(submit = true) {
 }
 $('camera-talk').onclick = async () => {
   if (micState) { await stopMic(); return; }
+  if (watch) stopWatch('音声入力中は見守りを止めたよ。');
   if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) { status('このブラウザでは音声入力を使えないよ。'); return; }
   let audio;
   const token = generation;
