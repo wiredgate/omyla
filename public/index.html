@@ -9,7 +9,7 @@
   <meta property="og:title" content="OMYLA — 世界を、そのままAIに伝える。">
   <meta property="og:description" content="画面もカメラの先も、あなたのキャンバス。話す・指す・描く・渡すから始まるAIクルー。">
   <title>OMYLA — 世界を、そのままAIに伝える。</title>
-  <link rel="stylesheet" href="/landing.css?v=2">
+  <link rel="stylesheet" href="/landing.css?v=3">
 </head>
 <body>
   <div class="site-shell">
@@ -19,31 +19,32 @@
       <a class="header-cta" href="/app/">アプリを試す <span aria-hidden="true">↗</span></a>
     </header>
     <main>
-      <section class="hero" aria-labelledby="hero-title">
+      <section class="hero hero-interactive" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <div class="live-label"><span class="live-dot"></span> PERSONAL AI CREW <span class="live-label-divider">/</span> BY UWAAA</div>
-          <h1 id="hero-title">世界を、<br><em>そのまま</em><br>AIに伝える。</h1>
-          <p class="hero-lead">目の前のものを指して、声で聞く。<br>画面もカメラの先も、あなたのキャンバスになる。</p>
-          <div class="hero-actions"><a class="button button-primary" href="/app/">OMYLAを体験する <span aria-hidden="true">↗</span></a><a class="text-link" href="#experience">どんな体験？ <span aria-hidden="true">↓</span></a></div>
-          <p class="hero-fine">公開プレビュー · ブラウザで体験 · アカウント登録なし</p>
+          <div class="live-label"><span class="live-dot"></span> PERSONAL AI CREW <span class="live-label-divider">/</span> TALK · POINT · DRAW · DROP</div>
+          <h1 id="hero-title">その<span class="hero-here">「ここ」</span>が、<br>AIへの指示になる。</h1>
+          <p class="hero-lead">PC画面も、スマホ画面も、カメラの先も。<br>見えているものを指して、声で聞く。OMYLAがその場で教える。</p>
+          <div class="hero-actions"><a class="button button-primary" href="/app/">OMYLAを試す <span aria-hidden="true">↗</span></a><a class="text-link" href="#experience">仕組みを見る <span aria-hidden="true">↓</span></a></div>
+          <p class="hero-fine">ブラウザで試せる公開プレビュー。アカウント登録なし。</p>
+          <div class="hero-sequence" aria-hidden="true"><span>YOU</span><i></i><span>指す／描く／話す</span><i></i><span>OMYLA</span><i></i><span>その場で答える</span></div>
         </div>
-        <div class="hero-art" aria-label="カメラの映像に丸を描き、声でAIに聞く体験を表したイメージ" role="img">
-          <div class="art-aura"></div>
-          <div class="art-header"><span class="art-index">01 / 03</span><span class="art-live"><i></i> LIVE CANVAS</span></div>
-          <div class="scene">
-            <div class="scene-glow"></div>
-            <div class="scene-window"><i></i><i></i><i></i></div>
-            <div class="scene-desk"></div>
-            <div class="scene-screen"><div class="scene-screen-top"><b></b><span></span><span></span></div><div class="scene-screen-title"></div><div class="scene-screen-row"><i></i><i></i><i></i></div><div class="scene-screen-lines"><i></i><i></i><i></i></div></div>
-            <div class="scene-cup"><i></i></div>
-            <div class="scene-plant"><i></i><i></i><i></i><i></i><b></b></div>
-            <div class="point-ring"><span>ここ</span></div>
+        <div class="demo-shell" id="demo" aria-label="画面を指す体験デモ">
+          <div class="demo-top"><span class="demo-top-brand">OMYLA<span>.</span> <small>LIVE DEMO</small></span><span class="demo-dotline"><i></i> INTERACTIVE CANVAS</span></div>
+          <div class="demo-mode" role="group" aria-label="デモのキャンバスを切り替える"><button type="button" class="active" id="demo-screen" aria-pressed="true">▣ 画面</button><button type="button" id="demo-camera" aria-pressed="false">◎ カメラ</button><span>下の画面をタップ・ドラッグしてみて</span></div>
+          <div class="demo-canvas" id="demo-canvas">
+            <div class="demo-screen-scene" id="demo-screen-scene" aria-hidden="true"><div class="mock-browser"><div class="mock-browser-bar"><i></i><i></i><i></i><span>my.workspace</span></div><div class="mock-app"><div class="mock-sidebar"><b>◌</b><i></i><i></i><i></i><i></i></div><div class="mock-content"><span>YOUR WORKSPACE</span><strong>今日のプロジェクト</strong><div class="mock-metrics"><div><small>進行中</small><b>08</b><em>↗ 18%</em></div><div><small>保留中</small><b>03</b><em>確認が必要</em></div></div><div class="mock-task"><i></i><span><b>Website launch</b><small>次のステップを確認</small></span><strong>確認する ↗</strong></div></div></div></div></div>
+            <div class="demo-camera-scene" id="demo-camera-scene" aria-hidden="true" hidden><div class="camera-light"></div><div class="camera-shelf"></div><div class="camera-book"><span>FUTURE<br>NOTES</span></div><div class="camera-leaf"><i></i><i></i><i></i><i></i><b></b></div><div class="camera-cup"><i></i></div><div class="camera-reticle"></div></div>
+            <canvas id="demo-ink" tabindex="0" role="button" aria-label="対象を指すか丸を描く。キーボードではEnterで選択"></canvas>
+            <div class="demo-hint" id="demo-hint">👆 画面の気になるところを指してみて</div>
+            <div class="demo-target" id="demo-target" hidden></div>
           </div>
-          <div class="voice-bubble"><span class="sound-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span>「この部分、どうすればいい？」</span></div>
-          <div class="reply-bubble"><span class="reply-mark">O.</span><p>まず、この項目から確認しよう。<br>順番に案内するね。</p></div>
-          <div class="art-footer"><span>YOUR WORLD IS THE CANVAS.</span><span>◌ &nbsp; TALK · POINT · DRAW</span></div>
+          <div class="demo-conversation" aria-live="polite">
+            <div class="demo-user"><span class="demo-wave" aria-hidden="true">▂▅▃▆▂</span><span id="demo-question">「ここ、どうすればいい？」</span></div>
+            <div class="demo-answer" id="demo-answer"><span class="demo-answer-logo">O.</span><p id="demo-answer-text">画面を指すと、ここに案内が現れる。</p><button type="button" id="demo-speak" aria-label="デモの回答を読み上げる" hidden>▶ 聞く</button></div>
+          </div>
+          <div class="demo-bottom"><span>指した場所と質問が、AIへの入力になる。</span><span>体験用の固定サンプル <span aria-hidden="true">↗</span></span></div>
         </div>
-        <div class="hero-side-note" aria-hidden="true">AN INTERFACE THAT GETS OUT OF YOUR WAY — 001</div>
+        <div class="hero-side-note" aria-hidden="true">THE WORLD IS THE INTERFACE — 001</div>
       </section>
       <section class="statement" id="experience">
         <p class="section-kicker"><span>01</span> THE IDEA</p>
@@ -67,5 +68,6 @@
     </main>
     <footer class="site-footer"><div><a class="logo" href="/">OMYLA<span>.</span></a><small>A PERSONAL AI CREW FOR WHAT COMES NEXT.</small></div><a href="https://uwaaa.com/" target="_blank" rel="noopener noreferrer">BY UWAAA <span aria-hidden="true">↗</span></a></footer>
   </div>
+  <script src="/landing.js?v=1" defer></script>
 </body>
 </html>
