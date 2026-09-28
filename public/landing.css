@@ -27,4 +27,4 @@
 .member-portrait{position:relative;overflow:hidden;animation:none!important;transform:none!important;will-change:auto}.member.is-active .member-portrait{animation:none!important;transform:none!important}.member-video{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover;pointer-events:none}@media(prefers-reduced-motion:reduce){.member-video{display:none!important}}
 
 /* Let the ivory video canvas inherit the card's paper tone after loading. */
-.member-portrait.video-ready{background-image:none!important;filter:none!important}.member-video{mix-blend-mode:multiply}
+.member-portrait.video-ready{background-image:none!important;filter:none!important}.member-video{mix-blend-mode:normal}
