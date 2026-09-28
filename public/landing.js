@@ -17,7 +17,7 @@
   };
   if ('IntersectionObserver' in window) {
     const observer = new IntersectionObserver(entries => entries.forEach(entry => update(entry.target.querySelector('video'), entry.isIntersecting)), {rootMargin:'200px 0px',threshold:0.01});
-    videos.forEach(video => observer.observe(video.parentElement));
+    videos.forEach(video => { const ready = () => video.parentElement.classList.add('video-ready'); if (video.readyState >= 2) ready(); else video.addEventListener('loadeddata', ready, {once:true}); observer.observe(video.parentElement); });
     const refresh = () => videos.forEach(video => update(video, !document.hidden && video.parentElement.getBoundingClientRect().bottom > -200 && video.parentElement.getBoundingClientRect().top < innerHeight + 200));
     document.addEventListener('visibilitychange', refresh);
     reduced.addEventListener('change', refresh);
