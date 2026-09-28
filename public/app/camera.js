@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const modal = $('camera-mode'), frame = $('camera-frame'), video = $('camera-video'), photo = $('camera-photo');
 const ink = $('camera-ink'), context = ink.getContext('2d');
 const backdropVideo = $('camera-backdrop-video'), backdropPhoto = $('camera-backdrop-photo');
-let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], answer = '', index = -1, generation = 0, micState = null, watch = null;
+let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], answer = '', index = -1, generation = 0, micState = null, watch = null, transcribing = false;
 const status = message => { $('camera-status').textContent = message; };
 const clamp = n => Math.max(0, Math.min(1, n));
 
@@ -253,7 +253,7 @@ $('camera-watch').onclick = () => {
   if (!stream || !video.videoWidth || modal.hidden) return;
   const goal = $('camera-goal').value.trim();
   if (!goal) { status('まず何を見守るか入力してね。'); $('camera-goal').focus(); return; }
-  if (micState) { status('録音を止めてから始めてね。'); return; }
+  if (micState || transcribing) { status('音声の処理が終わってから始めてね。'); return; }
   clearGuide();
   const session = { goal, sent: 0, busy: false, last: null, lastSent: 0, timer: null };
   watch = session;
@@ -262,13 +262,13 @@ $('camera-watch').onclick = () => {
   session.timer = setInterval(() => void watchFrame(session), 2000);
   void watchFrame(session);
 };
-$('camera-ask').onclick = async () => {
+async function askVisual(goalOverride = '', frameOverride = '') {
   if (watch) stopWatch();
-  if (micState) { status('録音を止めてから質問してね。'); return; }
-  const goal = $('camera-goal').value.trim();
+  if (micState || transcribing) { status('音声の処理が終わってから質問してね。'); return; }
+  const goal = (goalOverride || $('camera-goal').value).trim();
   if (!goal) { $('camera-goal').focus(); return; }
   const live = !!stream && !video.hidden && video.videoWidth > 0;
-  const frameImage = live ? encodeSnapshot(video, video.videoWidth, video.videoHeight) : image;
+  const frameImage = frameOverride || (live ? encodeSnapshot(video, video.videoWidth, video.videoHeight) : image);
   if (!frameImage) { status('画像を準備できなかった。もう一度試してね。'); return; }
   if (frameImage.length > 980000) { status('画像が大きすぎるよ。撮り直してね。'); return; }
   const button = $('camera-ask'), token = generation;
@@ -290,7 +290,8 @@ $('camera-ask').onclick = async () => {
     status(live ? '映像を見ながら続けて聞けるよ。移動中の映像には位置の印を固定しない。' : '答えを表示したよ。場所があれば画像上にも示せる。');
   } catch { if (token === generation && !modal.hidden) status('接続できなかった。少し待って再試行してね。'); }
   finally { button.disabled = false; }
-};
+}
+$('camera-ask').onclick = () => void askVisual();
 $('camera-next').onclick = () => { if (++index >= steps.length) clearGuide(); else showStep(); };
 function wave(samples, sampleRate) {
   const length = Math.min(224000, Math.round(samples.length * 16000 / sampleRate));
@@ -310,11 +311,13 @@ function wave(samples, sampleRate) {
 }
 async function stopMic(submit = true) {
   const state = micState; if (!state) return;
+  const liveFrame = submit && stream && !video.hidden && video.videoWidth
+    ? encodeSnapshot(video, video.videoWidth, video.videoHeight) : '';
   micState = null; clearTimeout(state.timer);
   state.processor.disconnect(); state.source.disconnect();
   state.stream.getTracks().forEach(track => track.stop());
   try { await state.context.close(); } catch {}
-  $('camera-talk').textContent = '🎙 押して話す'; $('camera-talk').setAttribute('aria-pressed', 'false');
+  $('camera-talk').textContent = '🎙 話して聞く'; $('camera-talk').setAttribute('aria-pressed', 'false');
   if (!submit || modal.hidden) return;
   const length = state.parts.reduce((n, part) => n + part.length, 0);
   if (length < state.context.sampleRate / 4) { status('もう少し長く話してね。'); return; }
@@ -325,21 +328,29 @@ async function stopMic(submit = true) {
   let binary = '';
   for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
   const token = generation;
-  $('camera-talk').disabled = true; status('音声を文字にしているよ…');
+  transcribing = true; $('camera-talk').disabled = true; status('音声を文字にしているよ…');
   try {
     const response = await fetch('/api/transcribe', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ audio: btoa(binary) }), signal: AbortSignal.timeout(45000) });
     const result = await response.json();
     if (token !== generation || modal.hidden) return;
     if (!response.ok || !result.text) { status(result.message || '音声を認識できなかった。'); return; }
-    $('camera-goal').value = [$('camera-goal').value.trim(), result.text].filter(Boolean).join(' ').slice(0, 800);
-    status('言葉を入力したよ。内容を確認してからAIに聞いてね。');
+    const spoken = String(result.text).trim().slice(0, 800);
+    if (liveFrame && stream && !video.hidden) {
+      $('camera-goal').value = spoken;
+      transcribing = false;
+      await askVisual(spoken, liveFrame);
+    } else {
+      $('camera-goal').value = [$('camera-goal').value.trim(), spoken].filter(Boolean).join(' ').slice(0, 800);
+      status('言葉を入力したよ。内容を確認してからAIに聞いてね。');
+    }
   } catch { if (token === generation && !modal.hidden) status('音声の接続に失敗した。'); }
-  finally { $('camera-talk').disabled = false; }
+  finally { transcribing = false; $('camera-talk').disabled = false; }
 }
 $('camera-talk').onclick = async () => {
   if (micState) { await stopMic(); return; }
   if (watch) stopWatch('音声入力中は見守りを止めたよ。');
+  if (transcribing) return;
   if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) { status('このブラウザでは音声入力を使えないよ。'); return; }
   let audio;
   const token = generation;
@@ -356,7 +367,7 @@ $('camera-talk').onclick = async () => {
     source.connect(processor); processor.connect(audioContext.destination);
     micState = state; state.timer = setTimeout(() => void stopMic(), 12500);
     $('camera-talk').textContent = '■ 録音を止める'; $('camera-talk').setAttribute('aria-pressed', 'true');
-    status('録音中 · 最大12秒。止めると文字にするよ。');
+    status('録音中 · 最大12秒。止めると、今見えているものについてAIに聞くよ。');
   } catch { audio?.getTracks().forEach(track => track.stop()); status('マイクを使えなかった。端末の設定を確認してね。'); }
 };
 document.addEventListener('visibilitychange', () => { if (document.hidden && !modal.hidden) closeCamera(); });
