@@ -28,3 +28,7 @@
 ## Live watch preview
 
 The user may explicitly start "見続ける" while the camera is open. A 24×18 downsampled luminance signature is compared locally every two seconds; after a meaningful change and a minimum twelve-second gap, one JPEG frame is sent to the existing observation API. There are at most three sends per watch session. Each consumes the same per-IP daily image quota (five) and global daily quota (thirty); the UI displays the number sent. The watch stops when closed, hidden, switched to a still image, speech recording begins, an API failure occurs, or its session limit is reached. The AI answers with speech; location marks are omitted on moving video because the target may already have moved. This is sparse event-triggered visual observation, not a streaming video model or continuous audio listener.
+
+## Short follow-up memory
+
+While the same camera or still-image surface is open, the client sends only the previous question and its short answer with the next explicit visual question. The current frame wins when the scene has changed. This bounded context is held only in page memory and cleared when switching or closing the surface. It is not written to server storage. The existing per-request preview quota still applies.

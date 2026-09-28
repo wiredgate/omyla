@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const modal = $('camera-mode'), frame = $('camera-frame'), video = $('camera-video'), photo = $('camera-photo');
 const ink = $('camera-ink'), context = ink.getContext('2d');
 const backdropVideo = $('camera-backdrop-video'), backdropPhoto = $('camera-backdrop-photo');
-let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], answer = '', index = -1, generation = 0, micState = null, watch = null, transcribing = false;
+let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], answer = '', index = -1, generation = 0, micState = null, watch = null, transcribing = false, previous = null;
 const status = message => { $('camera-status').textContent = message; };
 const clamp = n => Math.max(0, Math.min(1, n));
 
@@ -45,7 +45,7 @@ async function watchFrame(session) {
   try {
     const response = await fetch('/api/observe', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal: session.goal, image: frameImage, marks: [], surface: 'camera' }),
+      body: JSON.stringify({ goal: session.goal, image: frameImage, marks: [], surface: 'camera', previous }),
       signal: AbortSignal.timeout(45000)
     });
     const result = await response.json();
@@ -53,6 +53,7 @@ async function watchFrame(session) {
     if (!response.ok) { stopWatch(result.message || '映像を読み取れなかった。'); return; }
     if (typeof result.answer === 'string' && result.answer.trim()) {
       answer = result.answer.trim(); steps = []; index = -1;
+      previous = { question: session.goal, answer };
       showObservation();
     }
     status('映像を見守っているよ · ' + session.sent + '/3回送信');
@@ -75,12 +76,14 @@ function clearGuide() {
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
 function closeCamera() {
+  previous = null;
   ++generation; void stopMic(false); stopStream(); clearGuide(); image = ''; photo.removeAttribute('src');
   backdropPhoto.hidden = true; backdropPhoto.removeAttribute('src');
   ink.hidden = true; photo.hidden = true; video.hidden = false;
   strokes = []; stroke = null; modal.hidden = true;
 }
 async function openCamera() {
+  previous = null;
   const token = ++generation;
   void stopMic(false);
   stopStream(); clearGuide(); image = ''; strokes = []; stroke = null;
@@ -116,6 +119,7 @@ function encodeSnapshot(source, sourceWidth, sourceHeight) {
   return data.length < 980000 ? data : '';
 }
 function showSnapshot(data, ratio, kind) {
+  previous = null;
   sourceKind = kind;
   image = data; stopStream(); clearGuide(); strokes = []; stroke = null;
   backdropPhoto.src = data; backdropPhoto.hidden = false;
@@ -126,6 +130,7 @@ function showSnapshot(data, ratio, kind) {
   ink.hidden = false; requestAnimationFrame(resizeInk);
 }
 function openImport() {
+  previous = null;
   ++generation; void stopMic(false); stopStream(); clearGuide();
   image = ''; strokes = []; stroke = null;
   backdropPhoto.hidden = true; backdropPhoto.removeAttribute('src');
@@ -275,7 +280,7 @@ async function askVisual(goalOverride = '', frameOverride = '') {
   button.disabled = true; clearGuide(); status('画像を見て答えを考えているよ…');
   try {
     const response = await fetch('/api/observe', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, image: frameImage, marks: live ? [] : marks(), surface: live ? 'camera' : sourceKind }), signal: AbortSignal.timeout(60000) });
+      body: JSON.stringify({ goal, image: frameImage, marks: live ? [] : marks(), surface: live ? 'camera' : sourceKind, previous }), signal: AbortSignal.timeout(60000) });
     const result = await response.json();
     if (token !== generation || modal.hidden || (live && !stream)) return;
     if (!response.ok) { status(result.message || '画面を読み取れなかった。'); return; }
@@ -283,6 +288,7 @@ async function askVisual(goalOverride = '', frameOverride = '') {
       status('答えを読み取れなかった。もう一度聞いてね。'); return;
     }
     answer = result.answer.trim();
+    previous = { question: goal, answer };
     steps = !live && Array.isArray(result.steps) ? result.steps.filter(step =>
       typeof step?.text === 'string' && Number.isFinite(step.x) && Number.isFinite(step.y) &&
       step.x >= 0 && step.x <= 1 && step.y >= 0 && step.y <= 1) : [];
@@ -351,6 +357,7 @@ $('camera-talk').onclick = async () => {
   if (micState) { await stopMic(); return; }
   if (watch) stopWatch('音声入力中は見守りを止めたよ。');
   if (transcribing) return;
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
   if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) { status('このブラウザでは音声入力を使えないよ。'); return; }
   let audio;
   const token = generation;
