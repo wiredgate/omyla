@@ -42,8 +42,8 @@ async function openCamera() {
     await video.play();
     if (token !== generation || modal.hidden) return;
     frame.style.setProperty('--camera-ratio', String(video.videoWidth / video.videoHeight || 1.333));
-    $('camera-capture').hidden = false;
-    status('映像を見て撮影してね。AIに送るのは、撮影後に確認した画像だけ。');
+    $('camera-capture').hidden = false; $('camera-ask').hidden = false;
+    status('ライブ映像を見ながら質問できるよ。聞いた瞬間の1枚だけAIへ送る。');
   } catch { if (token === generation) status('カメラを使えなかった。ブラウザの権限設定を確認してね。'); }
 }
 function encodeSnapshot(source, sourceWidth, sourceHeight) {
@@ -196,25 +196,27 @@ $('camera-ask').onclick = async () => {
   if (micState) { status('録音を止めてから質問してね。'); return; }
   const goal = $('camera-goal').value.trim();
   if (!goal) { $('camera-goal').focus(); return; }
-  if (!image) return;
-  if (image.length > 980000) { status('画像が大きすぎるよ。撮り直してね。'); return; }
+  const live = !!stream && !video.hidden && video.videoWidth > 0;
+  const frameImage = live ? encodeSnapshot(video, video.videoWidth, video.videoHeight) : image;
+  if (!frameImage) { status('画像を準備できなかった。もう一度試してね。'); return; }
+  if (frameImage.length > 980000) { status('画像が大きすぎるよ。撮り直してね。'); return; }
   const button = $('camera-ask'), token = generation;
   button.disabled = true; clearGuide(); status('画像を見て答えを考えているよ…');
   try {
     const response = await fetch('/api/observe', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, image, marks: marks(), surface: sourceKind }), signal: AbortSignal.timeout(60000) });
+      body: JSON.stringify({ goal, image: frameImage, marks: live ? [] : marks(), surface: live ? 'camera' : sourceKind }), signal: AbortSignal.timeout(60000) });
     const result = await response.json();
-    if (token !== generation || modal.hidden) return;
+    if (token !== generation || modal.hidden || (live && !stream)) return;
     if (!response.ok) { status(result.message || '画面を読み取れなかった。'); return; }
     if (typeof result.answer !== 'string' || !result.answer.trim()) {
       status('答えを読み取れなかった。もう一度聞いてね。'); return;
     }
     answer = result.answer.trim();
-    steps = Array.isArray(result.steps) ? result.steps.filter(step =>
+    steps = !live && Array.isArray(result.steps) ? result.steps.filter(step =>
       typeof step?.text === 'string' && Number.isFinite(step.x) && Number.isFinite(step.y) &&
       step.x >= 0 && step.x <= 1 && step.y >= 0 && step.y <= 1) : [];
     index = -1; showObservation();
-    status('答えを表示したよ。場所があれば画像上にも示せる。');
+    status(live ? '映像を見ながら続けて聞けるよ。移動中の映像には位置の印を固定しない。' : '答えを表示したよ。場所があれば画像上にも示せる。');
   } catch { if (token === generation && !modal.hidden) status('接続できなかった。少し待って再試行してね。'); }
   finally { button.disabled = false; }
 };
