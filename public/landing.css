@@ -28,3 +28,6 @@
 
 /* Let the ivory video canvas inherit the card's paper tone after loading. */
 .member-portrait.video-ready{background-image:none!important;filter:none!important}.member-video{mix-blend-mode:normal}
+
+/* Compact illustrated brand mark for site header and footer. */
+.logo:has(img){display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;min-width:0;flex:none}.logo img{display:block;width:170px;height:auto;max-width:100%}.logo:has(img) small{margin:0 0 0 6px;font-size:.65rem;line-height:1;letter-spacing:.04em}.topbar .logo img{width:170px}footer .logo img{width:185px}@media(max-width:580px){.topbar .logo img{width:128px}.logo:has(img) small{font-size:.53rem;margin-left:4px}footer .logo img{width:160px}}
