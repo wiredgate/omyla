@@ -32,3 +32,7 @@ The user may explicitly start "見続ける" while the camera is open. A 24×18 
 ## Short follow-up memory
 
 While the same camera or still-image surface is open, the client sends only the previous question and its short answer with the next explicit visual question. The current frame wins when the scene has changed. This bounded context is held only in page memory and cleared when switching or closing the surface. It is not written to server storage. The existing per-request preview quota still applies.
+
+## Finger pointing on a live camera surface
+
+The transparent pointer canvas also covers the live video. A tap or short stroke is normalized to the visible frame and passed with the one frame captured for a text or spoken question. The client compares a low-resolution luminance signature between the initial point and capture; if the scene has changed substantially, it drops the stale marks instead of attributing them to an unrelated object. The stream keeps running. A native object tracker is a future upgrade for stable moving annotations.

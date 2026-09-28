@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const modal = $('camera-mode'), frame = $('camera-frame'), video = $('camera-video'), photo = $('camera-photo');
 const ink = $('camera-ink'), context = ink.getContext('2d');
 const backdropVideo = $('camera-backdrop-video'), backdropPhoto = $('camera-backdrop-photo');
-let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], answer = '', index = -1, generation = 0, micState = null, watch = null, transcribing = false, previous = null;
+let stream = null, image = '', sourceKind = 'camera', strokes = [], stroke = null, steps = [], answer = '', index = -1, generation = 0, micState = null, watch = null, transcribing = false, previous = null, markSignature = null;
 const status = message => { $('camera-status').textContent = message; };
 const clamp = n => Math.max(0, Math.min(1, n));
 
@@ -65,7 +65,7 @@ async function watchFrame(session) {
   }
 }
 function stopStream() {
-  stopWatch();
+  stopWatch(); markSignature = null;
   stream?.getTracks().forEach(track => track.stop());
   stream = null; video.pause(); video.srcObject = null;
   backdropVideo.pause(); backdropVideo.srcObject = null; backdropVideo.hidden = true;
@@ -102,7 +102,9 @@ async function openCamera() {
     if (token !== generation || modal.hidden) return;
     frame.style.setProperty('--camera-ratio', String(video.videoWidth / video.videoHeight || 1.333));
     $('camera-capture').hidden = false; $('camera-ask').hidden = false; $('camera-watch').hidden = false;
-    status('ライブ映像を見ながら質問できるよ。聞いた瞬間の1枚だけAIへ送る。');
+    $('camera-clear').hidden = false; ink.hidden = false;
+    requestAnimationFrame(resizeInk);
+    status('映像を指で示して質問できるよ。映像が動いたら印は描き直してね。');
   } catch { if (token === generation) status('カメラを使えなかった。ブラウザの権限設定を確認してね。'); }
 }
 function encodeSnapshot(source, sourceWidth, sourceHeight) {
@@ -121,7 +123,7 @@ function encodeSnapshot(source, sourceWidth, sourceHeight) {
 function showSnapshot(data, ratio, kind) {
   previous = null;
   sourceKind = kind;
-  image = data; stopStream(); clearGuide(); strokes = []; stroke = null;
+  image = data; stopStream(); clearGuide(); strokes = []; stroke = null; markSignature = null;
   backdropPhoto.src = data; backdropPhoto.hidden = false;
   frame.style.setProperty('--camera-ratio', String(ratio));
   video.hidden = true; photo.src = image; photo.hidden = false;
@@ -132,7 +134,7 @@ function showSnapshot(data, ratio, kind) {
 function openImport() {
   previous = null;
   ++generation; void stopMic(false); stopStream(); clearGuide();
-  image = ''; strokes = []; stroke = null;
+  image = ''; strokes = []; stroke = null; markSignature = null;
   backdropPhoto.hidden = true; backdropPhoto.removeAttribute('src');
   video.hidden = true; photo.hidden = true; photo.removeAttribute('src');
   ink.hidden = true; $('camera-capture').hidden = true; $('camera-retake').hidden = true; $('camera-watch').hidden = true;
@@ -227,7 +229,7 @@ $('camera-read').onchange = () => { if (!$('camera-read').checked && 'speechSynt
 $('camera-open').onclick = openCamera;
 $('camera-close').onclick = closeCamera;
 $('camera-retake').onclick = openCamera;
-$('camera-clear').onclick = () => { strokes = []; stroke = null; clearGuide(); drawInk(); };
+$('camera-clear').onclick = () => { strokes = []; stroke = null; markSignature = null; clearGuide(); drawInk(); };
 $('camera-capture').onclick = () => {
   if (!stream || !video.videoWidth) return;
   const data = encodeSnapshot(video, video.videoWidth, video.videoHeight);
@@ -236,7 +238,8 @@ $('camera-capture').onclick = () => {
   status('画像を確認してね。タップで指すか、指で丸や線を描いて質問できる。');
 };
 ink.addEventListener('pointerdown', event => {
-  if (!image) return;
+  if (!image && (!stream || !video.videoWidth)) return;
+  if (stream && !image && !strokes.length) markSignature = frameSignature();
   clearGuide(); event.preventDefault(); ink.setPointerCapture(event.pointerId);
   stroke = [position(event)]; drawInk();
 });
@@ -259,7 +262,7 @@ $('camera-watch').onclick = () => {
   const goal = $('camera-goal').value.trim();
   if (!goal) { status('まず何を見守るか入力してね。'); $('camera-goal').focus(); return; }
   if (micState || transcribing) { status('音声の処理が終わってから始めてね。'); return; }
-  clearGuide();
+  clearGuide(); strokes = []; stroke = null; markSignature = null; drawInk();
   const session = { goal, sent: 0, busy: false, last: null, lastSent: 0, timer: null };
   watch = session;
   $('camera-watch').setAttribute('aria-pressed', 'true');
@@ -267,7 +270,7 @@ $('camera-watch').onclick = () => {
   session.timer = setInterval(() => void watchFrame(session), 2000);
   void watchFrame(session);
 };
-async function askVisual(goalOverride = '', frameOverride = '') {
+async function askVisual(goalOverride = '', frameOverride = '', markOverride = null) {
   if (watch) stopWatch();
   if (micState || transcribing) { status('音声の処理が終わってから質問してね。'); return; }
   const goal = (goalOverride || $('camera-goal').value).trim();
@@ -276,11 +279,16 @@ async function askVisual(goalOverride = '', frameOverride = '') {
   const frameImage = frameOverride || (live ? encodeSnapshot(video, video.videoWidth, video.videoHeight) : image);
   if (!frameImage) { status('画像を準備できなかった。もう一度試してね。'); return; }
   if (frameImage.length > 980000) { status('画像が大きすぎるよ。撮り直してね。'); return; }
+  if (live && strokes.length && !frameOverride && markSignature && changed(markSignature, frameSignature())) {
+    strokes = []; markSignature = null; drawInk();
+    status('カメラが動いたので印を消したよ。もう一度指してね。'); return;
+  }
+  const selectedMarks = markOverride || marks();
   const button = $('camera-ask'), token = generation;
   button.disabled = true; clearGuide(); status('画像を見て答えを考えているよ…');
   try {
     const response = await fetch('/api/observe', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, image: frameImage, marks: live ? [] : marks(), surface: live ? 'camera' : sourceKind, previous }), signal: AbortSignal.timeout(60000) });
+      body: JSON.stringify({ goal, image: frameImage, marks: selectedMarks, surface: live ? 'camera' : sourceKind, previous }), signal: AbortSignal.timeout(60000) });
     const result = await response.json();
     if (token !== generation || modal.hidden || (live && !stream)) return;
     if (!response.ok) { status(result.message || '画面を読み取れなかった。'); return; }
@@ -319,6 +327,11 @@ async function stopMic(submit = true) {
   const state = micState; if (!state) return;
   const liveFrame = submit && stream && !video.hidden && video.videoWidth
     ? encodeSnapshot(video, video.videoWidth, video.videoHeight) : '';
+  const staleLiveMark = !!liveFrame && !!strokes.length && !!markSignature && changed(markSignature, frameSignature());
+  const liveMarks = liveFrame && !staleLiveMark ? marks() : [];
+  if (staleLiveMark) {
+    strokes = []; markSignature = null; drawInk();
+  }
   micState = null; clearTimeout(state.timer);
   state.processor.disconnect(); state.source.disconnect();
   state.stream.getTracks().forEach(track => track.stop());
@@ -342,10 +355,13 @@ async function stopMic(submit = true) {
     if (token !== generation || modal.hidden) return;
     if (!response.ok || !result.text) { status(result.message || '音声を認識できなかった。'); return; }
     const spoken = String(result.text).trim().slice(0, 800);
-    if (liveFrame && stream && !video.hidden) {
+    if (liveFrame && staleLiveMark) {
+      $('camera-goal').value = spoken;
+      status('カメラが動いたので印を消したよ。もう一度指してから質問してね。');
+    } else if (liveFrame && stream && !video.hidden) {
       $('camera-goal').value = spoken;
       transcribing = false;
-      await askVisual(spoken, liveFrame);
+      await askVisual(spoken, liveFrame, liveMarks);
     } else {
       $('camera-goal').value = [$('camera-goal').value.trim(), spoken].filter(Boolean).join(' ').slice(0, 800);
       status('言葉を入力したよ。内容を確認してからAIに聞いてね。');
