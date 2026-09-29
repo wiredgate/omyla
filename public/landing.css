@@ -31,3 +31,30 @@
 
 /* Compact illustrated brand mark for site header and footer. */
 .logo:has(img){display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;min-width:0;flex:none}.logo img{display:block;width:170px;height:auto;max-width:100%}.logo:has(img) small{margin:0 0 0 6px;font-size:.65rem;line-height:1;letter-spacing:.04em}.topbar .logo img{width:170px}footer .logo img{width:185px}@media(max-width:580px){.topbar .logo img{width:128px}.logo:has(img) small{font-size:.53rem;margin-left:4px}footer .logo img{width:160px}}
+
+/* Keep the entire animated crew in frame on narrow portrait screens. */
+@media (max-width: 580px) {
+  .hero-image {
+    background-position: center center;
+    filter: blur(10px) brightness(.58);
+    transform: scale(1.07);
+  }
+  .hero-video {
+    inset: auto 0 auto;
+    top: 10%;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    object-fit: contain;
+    object-position: center;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 82%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 82%, transparent);
+  }
+  .hero-shade {
+    background: linear-gradient(to bottom, #140e0d50, transparent 27%, #140e0d84 45%, #140e0de8 94%);
+  }
+  .hero h1 {
+    font-size: clamp(2.15rem, 9vw, 4.2rem);
+    white-space: normal;
+  }
+}
