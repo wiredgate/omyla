@@ -1,17 +1,25 @@
 name: Publish Windows Phase 1 Preview
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/windows-release.yml
+  workflow_run:
+    workflows: [Build Windows Presence Preview]
+    types: [completed]
 
 permissions:
   contents: write
   actions: read
 
+concurrency:
+  group: omyla-windows-release
+  cancel-in-progress: false
+
 jobs:
   publish:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -20,18 +28,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: OMYLA-Windows-Preview
-          run-id: 36565578051
-          repository: wiredgate/omyla
+          run-id: ${{ github.event.workflow_run.id }}
+          repository: ${{ github.repository }}
           github-token: ${{ github.token }}
           path: dist
-      - name: Check package and publish preview
+      - name: Check package and update preview
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           test -s dist/OMYLA-Windows-Preview.zip
           unzip -t dist/OMYLA-Windows-Preview.zip
-          gh release create windows-phase1-preview dist/OMYLA-Windows-Preview.zip \
-            --target 2a845b8bfda685f3878b1d3a2cc5c427e4ddc6b6 \
-            --title "OMYLA Windows Phase 1 Preview" \
-            --notes "Portable Windows x64 preview. Extract the ZIP, then run OMYLA.exe. Unsigned; mouse, touch, microphone, and mixed-DPI monitor behavior need device validation." \
-            --prerelease
+          gh release upload windows-phase1-preview dist/OMYLA-Windows-Preview.zip --clobber
