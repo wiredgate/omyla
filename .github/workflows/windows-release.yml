@@ -1,0 +1,37 @@
+name: Publish Windows Phase 1 Preview
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/windows-release.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download validated Windows package
+        uses: actions/download-artifact@v4
+        with:
+          name: OMYLA-Windows-Preview
+          run-id: 36565578051
+          repository: wiredgate/omyla
+          github-token: ${{ github.token }}
+          path: dist
+      - name: Check package and publish preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test -s dist/OMYLA-Windows-Preview.zip
+          unzip -t dist/OMYLA-Windows-Preview.zip
+          gh release create windows-phase1-preview dist/OMYLA-Windows-Preview.zip \
+            --target 2a845b8bfda685f3878b1d3a2cc5c427e4ddc6b6 \
+            --title "OMYLA Windows Phase 1 Preview" \
+            --notes "Portable Windows x64 preview. Extract the ZIP, then run OMYLA.exe. Unsigned; mouse, touch, microphone, and mixed-DPI monitor behavior need device validation." \
+            --prerelease
