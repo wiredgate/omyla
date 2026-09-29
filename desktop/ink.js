@@ -38,20 +38,26 @@ function classify(points) {
 }
 canvas.addEventListener('pointerdown', event => {
   canvas.setPointerCapture(event.pointerId);
-  if (mode === 'point') { if (marks.length < 12) marks.push({ kind: 'point', tip: point(event) }); paint(); return; }
+  if (mode === 'point') { if (marks.length < 12) { marks.push({ kind: 'point', tip: point(event) }); paths.push([]); } paint(); return; }
   active = true; stroke = [point(event)]; paint();
 });
-canvas.addEventListener('pointermove', event => { if (active) { stroke.push(point(event)); paint(); } });
+canvas.addEventListener('pointermove', event => {
+  if (!active || stroke.length >= 1499) return;
+  const next = point(event), last = stroke.at(-1);
+  if (Math.hypot((next.x - last.x) * innerWidth, (next.y - last.y) * innerHeight) >= 2) {
+    stroke.push(next); paint();
+  }
+});
 canvas.addEventListener('pointerup', event => {
   if (!active) return;
-  active = false; stroke.push(point(event));
+  active = false; if (stroke.length < 1500) stroke.push(point(event));
   if (marks.length < 12) { marks.push(classify(stroke)); paths.push(stroke); }
   stroke = []; paint();
 });
 $('point').classList.add('active');
 for (const id of ['point', 'draw']) $(id).onclick = () => { mode = id; $('point').classList.toggle('active', id === 'point'); $('draw').classList.toggle('active', id === 'draw'); };
-$('undo').onclick = () => { const last = marks.pop(); if (last?.kind !== 'point') paths.pop(); paint(); };
+$('undo').onclick = () => { marks.pop(); paths.pop(); paint(); };
 $('cancel').onclick = () => window.omylaInk.finish(null);
-$('finish').onclick = () => window.omylaInk.finish(marks);
+$('finish').onclick = () => window.omylaInk.finish({ marks, paths });
 document.addEventListener('keydown', event => { if (event.key === 'Escape') window.omylaInk.finish(null); });
 addEventListener('resize', paint); paint();

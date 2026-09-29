@@ -3,8 +3,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 
-const compact = { width: 64, height: 64 };
-const expanded = { width: 420, height: 400 };
+const compact = { width: 104, height: 118 };
+const expanded = { width: 500, height: 650 };
 let win;
 let open = false;
 let anchor;
@@ -12,7 +12,11 @@ let launchOnLogin = true;
 let selectedDisplayId;
 let inkWin;
 let selectedMarks = [];
+let selectedPaths = [];
 let selectedCanvas;
+let passiveWin;
+let handleWins = [];
+const handleDrags = new Map();
 let guideWin;
 let guideSteps = [];
 let guideIndex = 0;
@@ -21,19 +25,79 @@ let guideBusy = false;
 let computerBusy = false;
 let guideFingerprint;
 let guideCapturedAt = 0;
+let lastExchange;
+let guideMute = false;
+let draggingPresence = false;
+
+function stopDrawing() {
+  for (const handle of handleWins) if (!handle.isDestroyed()) handle.close();
+  handleWins = []; handleDrags.clear();
+  if (passiveWin && !passiveWin.isDestroyed()) passiveWin.close();
+  passiveWin = undefined;
+}
+function drawingDisplay() {
+  return screen.getAllDisplays().find(display => String(display.id) === selectedCanvas?.displayId);
+}
+function renderDrawing() {
+  if (!passiveWin || passiveWin.isDestroyed()) return;
+  passiveWin.webContents.send('drawing:update', { paths: selectedPaths, marks: selectedMarks });
+  const display = drawingDisplay();
+  if (!display) { stopDrawing(); return; }
+  const bounds = display.bounds;
+  handleWins.forEach((handle, index) => {
+    if (handle.isDestroyed() || !selectedMarks[index]) return;
+    const tip = selectedMarks[index].tip;
+    handle.setPosition(Math.round(bounds.x + tip.x * bounds.width - 15), Math.round(bounds.y + tip.y * bounds.height - 15));
+  });
+}
+function createDrawing() {
+  stopDrawing();
+  if (!selectedMarks.length) return;
+  const display = drawingDisplay();
+  if (!display) return;
+  passiveWin = new BrowserWindow({ ...display.bounds, frame: false, transparent: true, alwaysOnTop: true,
+    skipTaskbar: true, focusable: false, resizable: false, movable: false, hasShadow: false,
+    backgroundColor: '#00000000', show: false,
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'passive-preload.cjs') } });
+  passiveWin.setIgnoreMouseEvents(true);
+  passiveWin.webContents.on('will-navigate', e => e.preventDefault());
+  passiveWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  passiveWin.webContents.once('did-finish-load', () => { renderDrawing(); passiveWin?.showInactive(); });
+  passiveWin.loadFile(path.join(__dirname, 'passive.html'));
+  handleWins = selectedMarks.map(mark => {
+    const handle = new BrowserWindow({ width: 30, height: 30, frame: false, transparent: true, alwaysOnTop: true,
+      skipTaskbar: true, resizable: false, hasShadow: false, backgroundColor: '#00000000', show: false,
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, 'handle-preload.cjs') } });
+    handle.webContents.on('will-navigate', e => e.preventDefault());
+    handle.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    handle.webContents.once('did-finish-load', () => { renderDrawing(); if (!handle.isDestroyed()) handle.showInactive(); });
+    handle.loadFile(path.join(__dirname, 'handle.html'));
+    return handle;
+  });
+}
+function hideDrawing() {
+  if (passiveWin && !passiveWin.isDestroyed()) passiveWin.hide();
+  for (const handle of handleWins) if (!handle.isDestroyed()) handle.hide();
+}
+function restoreDrawing() {
+  if (passiveWin && !passiveWin.isDestroyed()) passiveWin.showInactive();
+  for (const handle of handleWins) if (!handle.isDestroyed()) handle.showInactive();
+}
 
 function stopGuide() {
   guideSteps = []; guideDisplay = undefined; guideIndex = 0;
+  guideMute = false;
   guideFingerprint = undefined; guideCapturedAt = 0;
   if (guideWin && !guideWin.isDestroyed()) guideWin.close();
   guideWin = undefined;
 }
 function renderGuide() {
   if (!guideWin || guideWin.isDestroyed()) return;
-  guideWin.webContents.send('guide:step', { step: guideSteps[guideIndex], index: guideIndex, total: guideSteps.length });
+  guideWin.webContents.send('guide:step', { step: guideSteps[guideIndex], index: guideIndex, total: guideSteps.length, mute: guideMute });
 }
-function startGuide(display, steps) {
+function startGuide(display, steps, mute = false) {
   stopGuide();
+  guideMute = mute;
   guideDisplay = { id: display.id, bounds: { ...display.bounds } };
   guideSteps = steps; guideIndex = 0;
   guideWin = new BrowserWindow({ ...display.bounds, frame: false, transparent: true, alwaysOnTop: true,
@@ -69,6 +133,17 @@ function place(size) {
   return { width: size.width, height: size.height,
     x: Math.round(Math.max(area.x, Math.min(area.x + area.width - size.width, anchor.x - size.width))),
     y: Math.round(Math.max(area.y, Math.min(area.y + area.height - size.height, anchor.y - size.height))) };
+}
+function shapePresence() {
+  if (process.platform !== 'win32' || !win || win.isDestroyed()) return;
+  // Native hit testing lets clicks and touch outside Mia reach the app underneath.
+  win.setShape(open ? [] : [
+    { x: 24, y: 10, width: 56, height: 6 },
+    { x: 15, y: 16, width: 74, height: 8 },
+    { x: 11, y: 24, width: 82, height: 62 },
+    { x: 16, y: 86, width: 72, height: 14 },
+    { x: 8, y: 100, width: 88, height: 10 }
+  ]);
 }
 
 function movePhysicalCursor(point) {
@@ -160,11 +235,25 @@ function togglePresence(followCursor = false) {
     selectedDisplayId = display.id;
     const area = display.workArea;
     anchor = { x: area.x + area.width - 12, y: area.y + area.height - 12 };
-    selectedMarks = []; selectedCanvas = undefined;
+    stopDrawing(); selectedMarks = []; selectedPaths = []; selectedCanvas = undefined;
   }
   open = !open;
   win.setBounds(place(open ? expanded : compact));
+  shapePresence();
   if (open) { win.show(); win.focus(); }
+}
+
+function movePresence(point) {
+  if (!draggingPresence || open || !win || win.isDestroyed()) return false;
+  if (!point || ![point.x, point.y].every(Number.isFinite)) return false;
+  const display = screen.getDisplayNearestPoint(point);
+  const area = display.workArea;
+  const x = Math.round(Math.max(area.x, Math.min(area.x + area.width - compact.width, point.x - compact.width / 2)));
+  const y = Math.round(Math.max(area.y, Math.min(area.y + area.height - compact.height, point.y - compact.height / 2)));
+  win.setPosition(x, y);
+  selectedDisplayId = display.id;
+  anchor = { x: x + compact.width, y: y + compact.height };
+  return true;
 }
 
 function create() {
@@ -188,6 +277,7 @@ function create() {
   win.webContents.on('will-navigate', event => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.loadFile(path.join(__dirname, 'index.html'));
+  shapePresence();
   win.once('ready-to-show', () => win.show());
 }
 
@@ -197,9 +287,13 @@ ipcMain.handle('overlay:toggle', event => {
   togglePresence();
   return open;
 });
+ipcMain.handle('overlay:drag-start', event => { if (!authorized(event) || open) return false; draggingPresence = true; return true; });
+ipcMain.handle('overlay:drag-move', (event, point) => authorized(event) ? movePresence(point) : false);
+ipcMain.handle('overlay:drag-end', event => { if (!authorized(event)) return false; draggingPresence = false; return true; });
 ipcMain.handle('overlay:close', event => {
   if (!authorized(event)) return;
   if (open) { open = false; win.setBounds(place(compact)); }
+  shapePresence();
 });
 ipcMain.handle('overlay:displays', event => authorized(event) ? { selected: String(activeDisplay().id), displays: screen.getAllDisplays().map(displayInfo) } : null);
 ipcMain.handle('overlay:select-display', (event, id) => {
@@ -210,14 +304,16 @@ ipcMain.handle('overlay:select-display', (event, id) => {
   selectedDisplayId = display.id;
   const area = display.workArea;
   anchor = { x: area.x + area.width - 12, y: area.y + area.height - 12 };
-  selectedMarks = []; selectedCanvas = undefined;
+  stopDrawing(); selectedMarks = []; selectedPaths = []; selectedCanvas = undefined;
   win.setBounds(place(open ? expanded : compact));
+  shapePresence();
   return true;
 });
 ipcMain.handle('overlay:preview-screen', async event => {
   if (!authorized(event) || inkWin || guideBusy) return null;
   const displayId = String(activeDisplay().id);
   if (guideWin && !guideWin.isDestroyed()) guideWin.hide();
+  hideDrawing();
   win.hide();
   try {
     await new Promise(resolve => setTimeout(resolve, 150));
@@ -225,7 +321,7 @@ ipcMain.handle('overlay:preview-screen', async event => {
     const source = sources.find(item => item.display_id === displayId);
     if (!source || source.thumbnail.isEmpty()) return null;
     return { displayId, image: source.thumbnail.toDataURL() };
-  } finally { if (win && !win.isDestroyed()) win.show(); if (guideWin && !guideWin.isDestroyed()) guideWin.showInactive(); }
+  } finally { if (win && !win.isDestroyed()) win.show(); if (guideWin && !guideWin.isDestroyed()) guideWin.showInactive(); restoreDrawing(); }
 });
 
 ipcMain.handle('overlay:transcribe', async (event, data) => {
@@ -249,6 +345,60 @@ ipcMain.handle('overlay:transcribe', async (event, data) => {
   } catch { return { error: 'network_error' }; }
 });
 
+ipcMain.handle('overlay:ask', async (event, value) => {
+  if (!authorized(event) || typeof value !== 'string' || !value.trim() || value.length > 1500) return { error: 'invalid_question' };
+  try {
+    const response = await fetch('https://omyla.uwaaa.com/api/ask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: value.trim() }), signal: AbortSignal.timeout(60000)
+    });
+    const result = await response.json();
+    if (!response.ok) return { error: result.error || 'service_unavailable', message: result.message };
+    if (typeof result.answer !== 'string') return { error: 'invalid_answer' };
+    lastExchange = { question: value.trim().slice(0, 300), answer: result.answer.slice(0, 320) };
+    return { answer: result.answer.slice(0, 1600) };
+  } catch { return { error: 'network_error' }; }
+});
+
+ipcMain.handle('overlay:observe', async (event, value) => {
+  if (!authorized(event) || inkWin || guideBusy || typeof value !== 'string' || !value.trim() || value.length > 800)
+    return { error: 'invalid_question' };
+  const display = activeDisplay();
+  const displayId = String(display.id);
+  guideBusy = true;
+  stopGuide();
+  hideDrawing();
+  win.hide();
+  try {
+    await new Promise(resolve => setTimeout(resolve, 180));
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1280, height: 720 } });
+    const source = sources.find(item => item.display_id === displayId);
+    if (!source || source.thumbnail.isEmpty()) return { error: 'capture_failed' };
+    const jpeg = source.thumbnail.toJPEG(72);
+    if (jpeg.length > 740000) return { error: 'image_too_large' };
+    const response = await fetch('https://omyla.uwaaa.com/api/observe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal: value.trim(), image: `data:image/jpeg;base64,${jpeg.toString('base64')}`,
+        previous: lastExchange, marks: selectedCanvas?.displayId === displayId ? selectedMarks : [] }),
+      signal: AbortSignal.timeout(60000)
+    });
+    const result = await response.json();
+    if (!response.ok) return { error: result.error || 'service_unavailable', message: result.message };
+    const current = screen.getAllDisplays().find(item => String(item.id) === displayId);
+    if (!current || current.bounds.x !== display.bounds.x || current.bounds.y !== display.bounds.y ||
+        current.bounds.width !== display.bounds.width || current.bounds.height !== display.bounds.height)
+      return { error: 'display_changed' };
+    if (typeof result.answer !== 'string' || !Array.isArray(result.steps) || result.steps.length > 3 ||
+        !result.steps.every(step => typeof step.text === 'string' && step.text.length <= 100 &&
+          ['circle', 'arrow'].includes(step.kind) && [step.x, step.y].every(n => typeof n === 'number' && n >= 0 && n <= 1)))
+      return { error: 'invalid_answer' };
+    lastExchange = { question: value.trim().slice(0, 300), answer: result.answer.slice(0, 320) };
+    if (result.steps.length) startGuide(current, result.steps, true);
+    return { answer: result.answer.slice(0, 320), marks: result.steps.length };
+  } catch { return { error: 'network_error' }; }
+  finally { guideBusy = false; if (win && !win.isDestroyed()) win.show(); restoreDrawing(); }
+});
+
 ipcMain.handle('overlay:guide', async (event, value) => {
   if (!authorized(event) || inkWin || guideBusy || typeof value !== 'string') return { error: 'busy' };
   const goal = value.trim();
@@ -257,6 +407,7 @@ ipcMain.handle('overlay:guide', async (event, value) => {
   const displayId = String(display.id);
   guideBusy = true;
   stopGuide();
+  hideDrawing();
   win.hide();
   try {
     await new Promise(resolve => setTimeout(resolve, 180));
@@ -288,7 +439,7 @@ ipcMain.handle('overlay:guide', async (event, value) => {
     guideCapturedAt = Date.now();
     return { count: steps.length, current: steps[0].text, model: String(result.model || '').slice(0, 100) };
   } catch { return { error: 'network_error' }; }
-  finally { guideBusy = false; if (win && !win.isDestroyed()) win.show(); }
+  finally { guideBusy = false; if (win && !win.isDestroyed()) win.show(); restoreDrawing(); }
 });
 ipcMain.handle('overlay:next-guide', event => {
   if (!authorized(event) || !guideSteps.length) return { remaining: 0 };
@@ -310,6 +461,7 @@ ipcMain.handle('overlay:execute-guide-click', async event => {
   const step = guideSteps[guideIndex];
   computerBusy = true;
   guideWin?.hide();
+  hideDrawing();
   win.hide();
   try {
     await new Promise(resolve => setTimeout(resolve, 180));
@@ -326,7 +478,7 @@ ipcMain.handle('overlay:execute-guide-click', async event => {
     stopGuide();
     return clicked ? { clicked: true } : { error: 'click_failed' };
   } catch { stopGuide(); return { error: 'click_failed' }; }
-  finally { computerBusy = false; if (win && !win.isDestroyed()) win.show(); }
+  finally { computerBusy = false; if (win && !win.isDestroyed()) win.show(); restoreDrawing(); }
 });
 
 ipcMain.handle('overlay:stop-guide', event => { if (!authorized(event)) return false; stopGuide(); return true; });
@@ -344,18 +496,52 @@ ipcMain.handle('overlay:draw', event => {
   inkWin.loadFile(path.join(__dirname, 'ink.html'));
   return true;
 });
-ipcMain.handle('overlay:ink-finish', (event, marks) => {
+ipcMain.handle('overlay:ink-finish', (event, drawing) => {
   if (!inkWin || event.sender !== inkWin.webContents) return false;
-  if (Array.isArray(marks) && marks.length <= 12 && marks.every(mark =>
+  const marks = drawing?.marks, paths = drawing?.paths;
+  if (Array.isArray(marks) && Array.isArray(paths) && marks.length === paths.length && marks.length <= 12 &&
+      paths.every(path => Array.isArray(path) && path.length <= 1500 && path.every(point =>
+        point && [point.x, point.y].every(n => typeof n === 'number' && n >= 0 && n <= 1))) && marks.every(mark =>
     ['point', 'circle', 'arrow', 'line'].includes(mark?.kind) &&
     mark.tip && [mark.tip.x, mark.tip.y].every(n => typeof n === 'number' && n >= 0 && n <= 1) &&
     (!mark.box || [mark.box.x, mark.box.y, mark.box.width, mark.box.height].every(n => typeof n === 'number' && n >= 0 && n <= 1)))) {
     const display = activeDisplay();
     selectedMarks = marks.map(mark => ({ kind: mark.kind, tip: mark.tip, box: mark.box, target: '' }));
+    selectedPaths = paths.map(path => path.map(({ x, y }) => ({ x, y })));
     selectedCanvas = { kind: 'monitor', displayId: String(display.id), width: display.bounds.width, height: display.bounds.height, originX: display.bounds.x, originY: display.bounds.y, scaleFactor: display.scaleFactor, observedAt: new Date().toISOString() };
+    createDrawing();
     win.webContents.send('overlay:marks-updated', selectedMarks.length);
   }
   inkWin.close();
+  return true;
+});
+ipcMain.handle('drawing:move', (event, dx, dy) => {
+  const index = handleWins.findIndex(handle => !handle.isDestroyed() && handle.webContents === event.sender);
+  if (index < 0 || !Number.isFinite(dx) || !Number.isFinite(dy) || Math.abs(dx) > 4000 || Math.abs(dy) > 4000) return false;
+  const display = drawingDisplay();
+  if (!selectedMarks[index] || !selectedPaths[index]) return false;
+  if (!display) return false;
+  if (!handleDrags.has(event.sender.id)) handleDrags.set(event.sender.id, {
+    mark: structuredClone(selectedMarks[index]), path: structuredClone(selectedPaths[index])
+  });
+  const original = handleDrags.get(event.sender.id);
+  const mx = dx / display.bounds.width, my = dy / display.bounds.height;
+  const clamp = n => Math.max(0, Math.min(1, n));
+  selectedMarks[index] = { ...original.mark,
+    tip: { x: clamp(original.mark.tip.x + mx), y: clamp(original.mark.tip.y + my) },
+    box: original.mark.box && { ...original.mark.box,
+      x: clamp(original.mark.box.x + mx), y: clamp(original.mark.box.y + my) } };
+  selectedPaths[index] = original.path.map(p => ({ x: clamp(p.x + mx), y: clamp(p.y + my) }));
+  renderDrawing();
+  return true;
+});
+ipcMain.handle('drawing:end', event => { handleDrags.delete(event.sender.id); return true; });
+ipcMain.handle('drawing:remove', event => {
+  const index = handleWins.findIndex(handle => !handle.isDestroyed() && handle.webContents === event.sender);
+  if (index < 0) return false;
+  selectedMarks.splice(index, 1); selectedPaths.splice(index, 1);
+  createDrawing();
+  win.webContents.send('overlay:marks-updated', selectedMarks.length);
   return true;
 });
 ipcMain.handle('overlay:move-cursor', async event => {
@@ -376,8 +562,9 @@ ipcMain.handle('overlay:open-goal', async (event, value) => {
   const payload = { goal, context: { surface: { kind: 'desktop', title: 'OMYLA Desktop' }, canvas: selectedCanvas, targets: [], marks: selectedMarks } };
   const url = `https://omyla.uwaaa.com/app/#omyla=${encodeURIComponent(JSON.stringify(payload))}`;
   await shell.openExternal(url);
-  selectedMarks = []; selectedCanvas = undefined;
+  stopDrawing(); selectedMarks = []; selectedPaths = []; selectedCanvas = undefined;
   if (open) { open = false; win.setBounds(place(compact)); }
+  shapePresence();
   return true;
 });
 ipcMain.handle('overlay:quit', event => { if (authorized(event)) app.quit(); });

@@ -2,7 +2,36 @@ const orb = document.getElementById('orb');
 const panel = document.getElementById('panel');
 const goal = document.getElementById('goal');
 function show(open) { if (!open && micState) stopMic(false); panel.hidden = !open; orb.setAttribute('aria-expanded', String(open)); orb.setAttribute('aria-label', open ? 'OMYLAを閉じる' : 'OMYLAを開く'); if (open) goal.focus(); }
-orb.onclick = async () => show(await window.omyla.toggle());
+let grab;
+let reactionTimer;
+function react(message) {
+  const bubble = document.getElementById('reaction');
+  bubble.textContent = message;
+  clearTimeout(reactionTimer);
+  reactionTimer = setTimeout(() => { bubble.textContent = ''; }, 1800);
+}
+orb.addEventListener('pointerdown', async event => {
+  if (event.button !== 0 || !panel.hidden) return;
+  grab = { id: event.pointerId, x: event.screenX, y: event.screenY, moved: false };
+  orb.setPointerCapture(event.pointerId);
+  await window.omyla.dragStart();
+});
+orb.addEventListener('pointermove', event => {
+  if (!grab || grab.id !== event.pointerId) return;
+  if (Math.hypot(event.screenX - grab.x, event.screenY - grab.y) > 6) grab.moved = true;
+  if (grab.moved) { orb.classList.add('carrying'); react('わっ！'); window.omyla.dragMove({ x: event.screenX, y: event.screenY }); }
+});
+async function release(event) {
+  if (!grab || grab.id !== event.pointerId) return;
+  const moved = grab.moved;
+  grab = undefined;
+  orb.classList.remove('carrying');
+  await window.omyla.dragEnd();
+  if (moved) react(['ふう。', '服、乱れちゃった。', 'ここでいい？', '次は優しくね！'][Math.floor(Math.random() * 4)]);
+  else { react('なあに？'); show(await window.omyla.toggle()); }
+}
+orb.addEventListener('pointerup', release);
+orb.addEventListener('pointercancel', async event => { if (grab?.id === event.pointerId) { grab = undefined; orb.classList.remove('carrying'); await window.omyla.dragEnd(); } });
 document.getElementById('close').onclick = async () => { await window.omyla.close(); show(false); };
 document.getElementById('send').onclick = async () => { if (!goal.value.trim()) { goal.focus(); return; } const sent = await window.omyla.openGoal(goal.value); if (sent) { goal.value = ''; const image = document.getElementById('screen-preview'); image.hidden = true; image.removeAttribute('src'); show(false); } };
 document.getElementById('quit').onclick = () => window.omyla.quit();
@@ -62,6 +91,31 @@ executeGuide.onclick = async () => {
 };
 
 const micButton = document.getElementById('mic'), micStatus = document.getElementById('mic-status');
+const askButton = document.getElementById('ask'), answerBox = document.getElementById('answer');
+let asking = false;
+async function askCrew() {
+  const text = goal.value.trim();
+  if (!text || asking) return;
+  asking = true; askButton.disabled = true; answerBox.hidden = false;
+  answerBox.textContent = '考えてるよ…';
+  try {
+    const result = document.getElementById('screen-context').checked
+      ? await window.omyla.observe(text) : await window.omyla.ask(text);
+    answerBox.textContent = result?.answer || result?.message || ({
+      daily_limit: '今日の利用枠に達したよ。', capture_failed: '画面を取得できなかった。',
+      network_error: '通信できなかった。', display_changed: '画面構成が変わったので、もう一度聞いてね。'
+    })[result?.error] || '答えを取得できなかった。';
+    if (result?.answer && 'speechSynthesis' in window) {
+      speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(result.answer);
+      utterance.lang = 'ja-JP'; utterance.rate = .98;
+      speechSynthesis.speak(utterance);
+    }
+  } catch { answerBox.textContent = '通信できなかった。'; }
+  finally { asking = false; askButton.disabled = false; }
+}
+askButton.onclick = askCrew;
+goal.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); askCrew(); } });
 let micState;
 function wave(samples, sampleRate) {
   const length = Math.min(240000, Math.round(samples.length * 16000 / sampleRate));
@@ -97,8 +151,8 @@ async function stopMic(upload = true) {
   const result = await window.omyla.transcribe(wave(samples, state.context.sampleRate));
   if (result.text) {
     goal.value = [goal.value.trim(), result.text].filter(Boolean).join(' ').slice(0, 1500);
-    micStatus.textContent = '文字にしました。内容を確認して送信してね。';
-    goal.focus();
+    micStatus.textContent = '聞き取ったよ。答えるね…';
+    await askCrew();
   } else micStatus.textContent = result.message || '音声を文字にできませんでした';
 }
 micButton.onclick = async () => {

@@ -1,6 +1,6 @@
-export async function runModel(env, model, instructions, input) {
+export async function runModel(env, model, instructions, input, maxTokens = 180) {
   if (model.startsWith('@cf/')) {
-    const result = await env.AI.run(model, { messages: [{ role: 'system', content: instructions }, { role: 'user', content: input }], max_tokens: 180, temperature: 0.3 });
+    const result = await env.AI.run(model, { messages: [{ role: 'system', content: instructions }, { role: 'user', content: input }], max_tokens: maxTokens, temperature: 0.3 });
     return { text: result.response, usage: result.usage };
   }
   if (!['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna'].includes(model)) throw new Error('unsupported_model');
