@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('omyla', {
   dragStart: () => ipcRenderer.invoke('overlay:drag-start'),
   dragMove: point => ipcRenderer.invoke('overlay:drag-move', point),
   dragEnd: () => ipcRenderer.invoke('overlay:drag-end'),
+  setWander: enabled => ipcRenderer.invoke('overlay:set-wander', enabled === true),
+  onWalking: callback => ipcRenderer.on('overlay:walking', (_event, walking) => callback(walking === true)),
   close: () => ipcRenderer.invoke('overlay:close'),
   displays: () => ipcRenderer.invoke('overlay:displays'),
   selectDisplay: id => ipcRenderer.invoke('overlay:select-display', String(id)),

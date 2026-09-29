@@ -19,3 +19,16 @@
 #panel header{position:sticky;top:0;z-index:2;padding:8px 0;background:#15221bf2;backdrop-filter:blur(16px)}
 .header-actions{display:flex;align-items:center;gap:8px}
 #panel #quit{display:inline-block;margin:0;padding:7px 12px;border:1px solid #f0a7aa;border-radius:8px;background:#482b32;color:#fff;font-size:13px;font-weight:700}
+
+#panel .wander-option{display:block;margin:10px 0;font-size:12px;color:#d7e8da}
+#wander{accent-color:#f388b5;vertical-align:middle}
+#orb.walking .crew-face{animation:crew-walk .42s ease-in-out infinite alternate}
+#orb.walking .crew-name{animation:crew-step .42s ease-in-out infinite alternate}
+#orb.landing .crew-face{animation:crew-land .65s ease-out 1}
+#orb.landing::before,#orb.landing::after{content:'✦';position:absolute;bottom:12px;color:#f3d9ae;font-size:15px;pointer-events:none;animation:crew-dust .7s ease-out forwards}
+#orb.landing::before{left:14px}#orb.landing::after{right:14px;animation-delay:.08s}
+@keyframes crew-walk{from{transform:translateY(-2px) rotate(-4deg) scaleX(.98)}to{transform:translateY(3px) rotate(4deg) scaleX(1.02)}}
+@keyframes crew-step{from{transform:translateY(-2px)}to{transform:translateY(1px)}}
+@keyframes crew-land{0%{transform:translateY(-10px) rotate(-8deg)}40%{transform:scaleY(.86) scaleX(1.08)}100%{transform:none}}
+@keyframes crew-dust{to{transform:translateY(-24px) translateX(16px) rotate(80deg);opacity:0}}
+@media(prefers-reduced-motion:reduce){#orb .crew-face,#orb.walking .crew-face,#orb.walking .crew-name{animation:none}}
