@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, shell, desktopCapturer, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell, desktopCapturer, globalShortcut, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
@@ -276,6 +276,9 @@ function create() {
     callback(microphoneAllowed(contents, permission, details)));
   win.webContents.on('will-navigate', event => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('context-menu', () => {
+    if (!open) Menu.buildFromTemplate([{ label: 'OMYLAを終了', click: () => app.quit() }]).popup({ window: win });
+  });
   win.loadFile(path.join(__dirname, 'index.html'));
   shapePresence();
   win.once('ready-to-show', () => win.show());
@@ -581,7 +584,7 @@ ipcMain.handle('overlay:set-login', (event, enabled) => {
 });
 
 if (app.requestSingleInstanceLock()) {
-  app.whenReady().then(() => { loadPreferences(); create(); globalShortcut.register('CommandOrControl+Shift+O', () => togglePresence(true)); });
+  app.whenReady().then(() => { loadPreferences(); create(); globalShortcut.register('CommandOrControl+Shift+O', () => togglePresence(true)); globalShortcut.register('Control+Alt+Shift+Q', () => app.quit()); });
   app.on('second-instance', () => { if (win && !win.isDestroyed()) win.show(); });
   app.on('window-all-closed', () => app.quit());
   app.on('will-quit', () => globalShortcut.unregisterAll());
