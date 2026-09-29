@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, shell, desktopCapturer, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell, desktopCapturer, globalShortcut, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
@@ -28,6 +28,11 @@ let guideCapturedAt = 0;
 let lastExchange;
 let guideMute = false;
 let draggingPresence = false;
+let wanderEnabled = true;
+let wanderTarget;
+let wanderPauseUntil = Date.now() + 6000;
+let walking = false;
+let wanderTimer;
 
 function stopDrawing() {
   for (const handle of handleWins) if (!handle.isDestroyed()) handle.close();
@@ -238,9 +243,64 @@ function togglePresence(followCursor = false) {
     stopDrawing(); selectedMarks = []; selectedPaths = []; selectedCanvas = undefined;
   }
   open = !open;
+  wanderTarget = undefined;
+  wanderPauseUntil = Date.now() + 3000;
+  setWalking(false);
   win.setBounds(place(open ? expanded : compact));
   shapePresence();
   if (open) { win.show(); win.focus(); }
+}
+
+function setWalking(value) {
+  if (walking === value) return;
+  walking = value;
+  if (win && !win.isDestroyed()) win.webContents.send('overlay:walking', value);
+}
+function wanderTick() {
+  if (!wanderEnabled || !win || win.isDestroyed() || !win.isVisible() ||
+      open || draggingPresence || inkWin || guideBusy || computerBusy) {
+    setWalking(false);
+    return;
+  }
+  const area = activeDisplay().workArea;
+  const bounds = win.getBounds();
+  if (bounds.width !== compact.width || bounds.height !== compact.height) return;
+  const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
+  const pointer = screen.getCursorScreenPoint();
+  if (pointer.x >= bounds.x - 90 && pointer.x <= bounds.x + bounds.width + 90 &&
+      pointer.y >= bounds.y - 90 && pointer.y <= bounds.y + bounds.height + 90) {
+    wanderPauseUntil = Date.now() + 1200;
+    setWalking(false);
+    return;
+  }
+  if (Date.now() < wanderPauseUntil) { setWalking(false); return; }
+  if (!wanderTarget) {
+    const dx = (Math.random() < .5 ? -1 : 1) * (100 + Math.random() * 220);
+    const dy = (Math.random() - .5) * 260;
+    wanderTarget = {
+      x: Math.round(clamp(bounds.x + dx, area.x, area.x + area.width - compact.width)),
+      y: Math.round(clamp(bounds.y + dy, area.y, area.y + area.height - compact.height))
+    };
+  }
+  const dx = wanderTarget.x - bounds.x, dy = wanderTarget.y - bounds.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance < 3) {
+    wanderTarget = undefined;
+    wanderPauseUntil = Date.now() + 1400 + Math.random() * 2600;
+    setWalking(false);
+    return;
+  }
+  const x = Math.round(clamp(bounds.x + dx / distance * 2, area.x, area.x + area.width - compact.width));
+  const y = Math.round(clamp(bounds.y + dy / distance * 2, area.y, area.y + area.height - compact.height));
+  if (x === bounds.x && y === bounds.y) {
+    wanderTarget = undefined;
+    wanderPauseUntil = Date.now() + 1800;
+    setWalking(false);
+    return;
+  }
+  win.setPosition(x, y);
+  anchor = { x: x + compact.width, y: y + compact.height };
+  setWalking(true);
 }
 
 function movePresence(point) {
@@ -251,6 +311,8 @@ function movePresence(point) {
   const x = Math.round(Math.max(area.x, Math.min(area.x + area.width - compact.width, point.x - compact.width / 2)));
   const y = Math.round(Math.max(area.y, Math.min(area.y + area.height - compact.height, point.y - compact.height / 2)));
   win.setPosition(x, y);
+  wanderTarget = undefined;
+  setWalking(false);
   selectedDisplayId = display.id;
   anchor = { x: x + compact.width, y: y + compact.height };
   return true;
@@ -276,6 +338,9 @@ function create() {
     callback(microphoneAllowed(contents, permission, details)));
   win.webContents.on('will-navigate', event => event.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('context-menu', () => {
+    if (!open) Menu.buildFromTemplate([{ label: 'OMYLAを終了', click: () => app.quit() }]).popup({ window: win });
+  });
   win.loadFile(path.join(__dirname, 'index.html'));
   shapePresence();
   win.once('ready-to-show', () => win.show());
@@ -287,9 +352,10 @@ ipcMain.handle('overlay:toggle', event => {
   togglePresence();
   return open;
 });
-ipcMain.handle('overlay:drag-start', event => { if (!authorized(event) || open) return false; draggingPresence = true; return true; });
+ipcMain.handle('overlay:drag-start', event => { if (!authorized(event) || open) return false; draggingPresence = true; wanderTarget = undefined; setWalking(false); return true; });
 ipcMain.handle('overlay:drag-move', (event, point) => authorized(event) ? movePresence(point) : false);
-ipcMain.handle('overlay:drag-end', event => { if (!authorized(event)) return false; draggingPresence = false; return true; });
+ipcMain.handle('overlay:drag-end', event => { if (!authorized(event)) return false; draggingPresence = false; wanderPauseUntil = Date.now() + 6000; return true; });
+ipcMain.handle('overlay:set-wander', (event, enabled) => { if (!authorized(event) || typeof enabled !== 'boolean') return false; wanderEnabled = enabled; wanderTarget = undefined; setWalking(false); return true; });
 ipcMain.handle('overlay:close', event => {
   if (!authorized(event)) return;
   if (open) { open = false; win.setBounds(place(compact)); }
@@ -305,6 +371,8 @@ ipcMain.handle('overlay:select-display', (event, id) => {
   const area = display.workArea;
   anchor = { x: area.x + area.width - 12, y: area.y + area.height - 12 };
   stopDrawing(); selectedMarks = []; selectedPaths = []; selectedCanvas = undefined;
+  wanderTarget = undefined;
+  wanderPauseUntil = Date.now() + 3000;
   win.setBounds(place(open ? expanded : compact));
   shapePresence();
   return true;
@@ -581,8 +649,8 @@ ipcMain.handle('overlay:set-login', (event, enabled) => {
 });
 
 if (app.requestSingleInstanceLock()) {
-  app.whenReady().then(() => { loadPreferences(); create(); globalShortcut.register('CommandOrControl+Shift+O', () => togglePresence(true)); });
+  app.whenReady().then(() => { loadPreferences(); create(); wanderTimer = setInterval(wanderTick, 50); globalShortcut.register('CommandOrControl+Shift+O', () => togglePresence(true)); globalShortcut.register('Control+Alt+Shift+Q', () => app.quit()); });
   app.on('second-instance', () => { if (win && !win.isDestroyed()) win.show(); });
   app.on('window-all-closed', () => app.quit());
-  app.on('will-quit', () => globalShortcut.unregisterAll());
+  app.on('will-quit', () => { clearInterval(wanderTimer); globalShortcut.unregisterAll(); });
 } else app.quit();

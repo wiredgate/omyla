@@ -1,6 +1,11 @@
 const orb = document.getElementById('orb');
 const panel = document.getElementById('panel');
 const goal = document.getElementById('goal');
+const wanderOption = document.getElementById('wander');
+try { wanderOption.checked = localStorage.getItem('omyla-wander') !== 'off' && !matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { wanderOption.checked = true; }
+window.omyla.setWander(wanderOption.checked);
+wanderOption.onchange = () => { try { localStorage.setItem('omyla-wander', wanderOption.checked ? 'on' : 'off'); } catch {} window.omyla.setWander(wanderOption.checked); };
+window.omyla.onWalking(walking => orb.classList.toggle('walking', walking));
 function show(open) { if (!open && micState) stopMic(false); panel.hidden = !open; orb.setAttribute('aria-expanded', String(open)); orb.setAttribute('aria-label', open ? 'OMYLAを閉じる' : 'OMYLAを開く'); if (open) goal.focus(); }
 let grab;
 let reactionTimer;
@@ -27,7 +32,7 @@ async function release(event) {
   grab = undefined;
   orb.classList.remove('carrying');
   await window.omyla.dragEnd();
-  if (moved) react(['ふう。', '服、乱れちゃった。', 'ここでいい？', '次は優しくね！'][Math.floor(Math.random() * 4)]);
+  if (moved) { orb.classList.add('landing'); setTimeout(() => orb.classList.remove('landing'), 750); react(['ふう。', '服、乱れちゃった。', 'ここでいい？', '次は優しくね！'][Math.floor(Math.random() * 4)]); }
   else { react('なあに？'); show(await window.omyla.toggle()); }
 }
 orb.addEventListener('pointerup', release);
