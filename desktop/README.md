@@ -6,7 +6,7 @@ Portable Windows x64 app. It runs above other windows and can start at login aft
 
 Download the `OMYLA-Windows-Preview` artifact from the Windows build workflow, extract the whole ZIP, and run `OMYLA.exe`. For source development, run `npm install && npm start` inside `desktop/` on Windows.
 
-Mia stays on top. Drag her with a mouse or finger; she struggles while held and reacts when released. Tap or click her to open the panel. In compact mode, Windows native window shaping passes input outside her hit region to the app beneath. The expanded panel is interactive; close it to return to normal work. Ctrl+Shift+O toggles the panel. The login startup checkbox is available in a packaged build.
+Mia stays on top. Drag her with a mouse or finger; she struggles while held and reacts when released. Tap or click her to open the panel. The **終了** button stays at the top of the panel. On Windows, right-click Mia and select **OMYLAを終了**, or press **Ctrl+Alt+Shift+Q** to quit even when the panel is inaccessible. In compact mode, Windows native window shaping passes input outside her hit region to the app beneath. The expanded panel is interactive; close it to return to normal work. Ctrl+Shift+O toggles the panel. The login startup checkbox is available in a packaged build.
 
 The drawing tool temporarily takes pointer input while drawing on one chosen monitor. Finish or cancel to return input to underlying apps. Finished strokes stay visible in a transparent, input-transparent window; their small pink handles can be dragged with mouse or touch, or removed with a right click. The guide overlay passes input through. A disconnected display removes its drawing until a new drawing is made. The character and marks themselves remain intentional interactive targets.
 
