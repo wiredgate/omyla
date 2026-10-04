@@ -1,4 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
+import { CrewSession, crewResponse } from './crew-worker.js';
+export { CrewSession };
 import { modelUsage, providerCostMicros, audioCostMicros, previewPricing, finalizePreviewPricing } from './pricing.js';
 import { runModel } from './model-provider.js';
 import { resolveAgentModels } from './model-routing.js';
@@ -357,6 +359,7 @@ async function browserGuideResponse(request, env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/api/crew' || url.pathname.startsWith('/api/crew/')) return crewResponse(request, env);
     if (url.pathname === '/api/browser-guide') return browserGuideResponse(request, env);
     if (url.pathname === '/api/guide' || url.pathname === '/api/observe') return guideResponse(request, env, url);
     if (url.pathname === '/api/transcribe') return transcribeResponse(request, env, url);
