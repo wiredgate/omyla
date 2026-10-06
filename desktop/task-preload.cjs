@@ -1,0 +1,2 @@
+const {contextBridge,ipcRenderer}=require('electron');
+contextBridge.exposeInMainWorld('task',{stop:()=>ipcRenderer.invoke('task:stop'),approve:value=>ipcRenderer.invoke('task:approve',value===true),dismiss:()=>ipcRenderer.invoke('task:dismiss'),onState:callback=>ipcRenderer.on('task:state',(_e,value)=>callback(value)),onApproval:callback=>ipcRenderer.on('task:approval',(_e,value)=>callback(value))});

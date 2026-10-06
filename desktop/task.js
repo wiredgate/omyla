@@ -1,0 +1,4 @@
+const status=document.getElementById('status');
+window.task.onState(value=>{status.textContent=({stopped:'停止したよ',failed:'作業を中断したよ'}[value.state]||value.summary);document.getElementById('count').textContent=`${value.count||0}操作 · Ctrl + Alt + S で停止`;const ended=value.finished||['done','failed','stopped'].includes(value.state);document.getElementById('stop').hidden=ended;document.getElementById('dismiss').hidden=!ended;if(ended)document.getElementById('approval').hidden=true;});
+window.task.onApproval(value=>{document.getElementById('approval').hidden=!value;if(value)document.getElementById('detail').textContent=value.summary+(value.text?' · '+value.text:'');});
+document.getElementById('stop').onclick=()=>window.task.stop();document.getElementById('approve').onclick=()=>window.task.approve(true);document.getElementById('deny').onclick=()=>window.task.approve(false);document.getElementById('dismiss').onclick=()=>window.task.dismiss();

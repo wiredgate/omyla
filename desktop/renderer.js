@@ -185,3 +185,16 @@ micButton.onclick = async () => {
     micStatus.textContent = '録音中 · 最大15秒';
   } catch { stream?.getTracks().forEach(track => track.stop()); micStatus.textContent = 'マイクを使えませんでした。Windowsのマイク設定を確認してね。'; }
 };
+
+const runTaskButton=document.getElementById('run-task');
+window.omyla.onTaskCollapse(()=>show(false));
+window.omyla.onFacing(direction=>orb.dataset.facing=direction);
+window.omyla.onTaskState(value=>{document.getElementById('task-result').textContent=value.summary||value.state;orb.classList.toggle('working',value.state==='acting');if(value.state==='walking')react('行ってくるね');if(value.state==='done')react('できたよ');});
+runTaskButton.onclick=async()=>{
+ if(!goal.value.trim()){goal.focus();return;}
+ if(!document.getElementById('task-consent').checked){document.getElementById('task-result').textContent='この作業の画面共有と操作をチェックしてね';return;}
+ runTaskButton.disabled=true;
+ try{const result=await window.omyla.startTask(goal.value.trim());document.getElementById('task-result').textContent=result.summary||({windows_required:'Windows版で使ってね',daily_limit:'今日の利用枠に達したよ',action_blocked:'この操作は自動実行できないよ',user_intervened:'マウス操作を検知して止まったよ',target_changed:'対象が変わったので止まったよ'}[result.error]||result.error||result.state);}
+ catch{document.getElementById('task-result').textContent='作業を開始できなかったよ';}
+ finally{runTaskButton.disabled=false;document.getElementById('task-consent').checked=false;}
+};
