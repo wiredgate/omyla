@@ -8,7 +8,7 @@ const sleep=(ms,signal)=>new Promise((resolve,reject)=>{
  signal?.addEventListener('abort',abort,{once:true});
 });
 
-function installDesktopTasks({BrowserWindow,ipcMain,screen,desktopCapturer,globalShortcut,getWindow,getDisplay,authorized,prepare,setBusy,setWalking,updateAnchor,targetChanged}) {
+function installDesktopTasks({BrowserWindow,ipcMain,screen,desktopCapturer,globalShortcut,getWindow,getDisplay,authorized,prepare,setBusy,setWalking,updateAnchor,targetChanged,canStart}) {
  let hud,confirmation,engine,grantedDisplay;
  const point=action=>{const d=getDisplay();return {x:d.bounds.x+Math.min(d.bounds.width-1,Math.floor(action.x*d.bounds.width)),y:d.bounds.y+Math.min(d.bounds.height-1,Math.floor(action.y*d.bounds.height))};};
  const physical=action=>screen.dipToScreenPoint(point(action));
@@ -79,7 +79,7 @@ function installDesktopTasks({BrowserWindow,ipcMain,screen,desktopCapturer,globa
  engine=new TaskEngine(adapter);
  ipcMain.handle('task:start',async(event,goal)=>{
   if(!authorized(event)||process.platform!=='win32')return {error:'windows_required'};
-  if(engine.task)return {error:'task_busy'};
+  if(engine.task||!canStart())return {error:'task_busy'};
   if(typeof goal!=='string'||!goal.trim()||goal.length>1500)return {error:'invalid_goal'};
   prepare();grantedDisplay=snapshotDisplay();setBusy(true);createHud();
   return engine.run(goal);

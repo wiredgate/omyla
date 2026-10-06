@@ -652,7 +652,7 @@ ipcMain.handle('overlay:set-login', (event, enabled) => {
 
 if (app.requestSingleInstanceLock()) {
   app.whenReady().then(() => { loadPreferences(); create(); wanderTimer = setInterval(wanderTick, 50); globalShortcut.register('CommandOrControl+Shift+O', () => togglePresence(true)); globalShortcut.register('Control+Alt+Shift+Q', () => app.quit());
-    desktopTasks = installDesktopTasks({ BrowserWindow, ipcMain, screen, desktopCapturer, globalShortcut, getWindow: () => win, getDisplay: activeDisplay, authorized, targetChanged,
+    desktopTasks = installDesktopTasks({ BrowserWindow, ipcMain, screen, desktopCapturer, globalShortcut, getWindow: () => win, getDisplay: activeDisplay, authorized, targetChanged, canStart: () => !computerBusy && !guideBusy && !inkWin && !draggingPresence,
       prepare: () => { stopGuide(); stopDrawing(); open = false; wanderTarget = undefined; win.setBounds(place(compact)); shapePresence(); win.webContents.send('task:collapse'); },
       setBusy: value => { computerBusy = value; }, setWalking, updateAnchor: (x, y) => { anchor = { x, y }; } }); });
   app.on('second-instance', () => { if (win && !win.isDestroyed()) win.show(); });
