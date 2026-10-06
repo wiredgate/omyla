@@ -11,6 +11,8 @@ on:
     paths:
       - desktop/**
       - src/worker.js
+      - src/desktop-planner.js
+      - test/desktop-task.test.js
       - .github/workflows/windows-preview.yml
 
 permissions:
@@ -29,6 +31,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Verify task engine
+        run: npm test
+      - name: Verify native Windows helper
+        shell: pwsh
+        run: ./desktop/verify-native.ps1
       - name: Install desktop dependencies
         working-directory: desktop
         run: npm ci --no-audit --no-fund

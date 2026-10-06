@@ -1,3 +1,4 @@
+import { desktopStepResponse } from './desktop-planner.js';
 import { DurableObject } from 'cloudflare:workers';
 import { modelUsage, providerCostMicros, audioCostMicros, previewPricing, finalizePreviewPricing } from './pricing.js';
 import { runModel } from './model-provider.js';
@@ -74,6 +75,13 @@ export class Quota extends DurableObject {
     if (total >= 30 || personal >= 5) return false;
     this.ctx.storage.sql.exec('INSERT INTO quotas (key, used) VALUES (?, 1) ON CONFLICT(key) DO UPDATE SET used = used + 1', key);
     this.ctx.storage.sql.exec('INSERT INTO quotas (key, used) VALUES (?, 1) ON CONFLICT(key) DO UPDATE SET used = used + 1', ipKey);
+    return true;
+  }
+  reserveDesktop(ip) {
+    const date = new Date().toISOString().slice(0, 10);
+    const keys = [[`desktop:day:${date}`, 80], [`desktop:ip:${date}:${ip}`, 24]];
+    if (keys.some(([key, limit]) => (this.ctx.storage.sql.exec('SELECT used FROM quotas WHERE key = ?', key).toArray()[0]?.used || 0) >= limit)) return false;
+    for (const [key] of keys) this.ctx.storage.sql.exec('INSERT INTO quotas (key, used) VALUES (?, 1) ON CONFLICT(key) DO UPDATE SET used = used + 1', key);
     return true;
   }
   recordPreviewUsage({ id, kind, model, state, usage, durationMs }) {
@@ -357,6 +365,7 @@ async function browserGuideResponse(request, env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/api/desktop-step') return desktopStepResponse(request, env);
     if (url.pathname === '/api/browser-guide') return browserGuideResponse(request, env);
     if (url.pathname === '/api/guide' || url.pathname === '/api/observe') return guideResponse(request, env, url);
     if (url.pathname === '/api/transcribe') return transcribeResponse(request, env, url);

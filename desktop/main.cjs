@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, screen, shell, desktopCapturer, globalShort
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
+const { installDesktopTasks } = require('./desktop-task.cjs');
+let desktopTasks;
 
 const compact = { width: 104, height: 118 };
 const expanded = { width: 500, height: 650 };
@@ -352,7 +354,7 @@ ipcMain.handle('overlay:toggle', event => {
   togglePresence();
   return open;
 });
-ipcMain.handle('overlay:drag-start', event => { if (!authorized(event) || open) return false; draggingPresence = true; wanderTarget = undefined; setWalking(false); return true; });
+ipcMain.handle('overlay:drag-start', event => { if (!authorized(event) || computerBusy || open) return false; draggingPresence = true; wanderTarget = undefined; setWalking(false); return true; });
 ipcMain.handle('overlay:drag-move', (event, point) => authorized(event) ? movePresence(point) : false);
 ipcMain.handle('overlay:drag-end', event => { if (!authorized(event)) return false; draggingPresence = false; wanderPauseUntil = Date.now() + 6000; return true; });
 ipcMain.handle('overlay:set-wander', (event, enabled) => { if (!authorized(event) || typeof enabled !== 'boolean') return false; wanderEnabled = enabled; wanderTarget = undefined; setWalking(false); return true; });
@@ -363,7 +365,7 @@ ipcMain.handle('overlay:close', event => {
 });
 ipcMain.handle('overlay:displays', event => authorized(event) ? { selected: String(activeDisplay().id), displays: screen.getAllDisplays().map(displayInfo) } : null);
 ipcMain.handle('overlay:select-display', (event, id) => {
-  if (!authorized(event) || inkWin || guideBusy || typeof id !== 'string') return false;
+  if (!authorized(event) || computerBusy || inkWin || guideBusy || typeof id !== 'string') return false;
   const display = screen.getAllDisplays().find(item => String(item.id) === id);
   if (!display) return false;
   stopGuide();
@@ -378,7 +380,7 @@ ipcMain.handle('overlay:select-display', (event, id) => {
   return true;
 });
 ipcMain.handle('overlay:preview-screen', async event => {
-  if (!authorized(event) || inkWin || guideBusy) return null;
+  if (!authorized(event) || computerBusy || inkWin || guideBusy) return null;
   const displayId = String(activeDisplay().id);
   if (guideWin && !guideWin.isDestroyed()) guideWin.hide();
   hideDrawing();
@@ -429,7 +431,7 @@ ipcMain.handle('overlay:ask', async (event, value) => {
 });
 
 ipcMain.handle('overlay:observe', async (event, value) => {
-  if (!authorized(event) || inkWin || guideBusy || typeof value !== 'string' || !value.trim() || value.length > 800)
+  if (!authorized(event) || computerBusy || inkWin || guideBusy || typeof value !== 'string' || !value.trim() || value.length > 800)
     return { error: 'invalid_question' };
   const display = activeDisplay();
   const displayId = String(display.id);
@@ -468,7 +470,7 @@ ipcMain.handle('overlay:observe', async (event, value) => {
 });
 
 ipcMain.handle('overlay:guide', async (event, value) => {
-  if (!authorized(event) || inkWin || guideBusy || typeof value !== 'string') return { error: 'busy' };
+  if (!authorized(event) || computerBusy || inkWin || guideBusy || typeof value !== 'string') return { error: 'busy' };
   const goal = value.trim();
   if (!goal || goal.length > 800) return { error: 'invalid_goal' };
   const display = activeDisplay();
@@ -551,7 +553,7 @@ ipcMain.handle('overlay:execute-guide-click', async event => {
 
 ipcMain.handle('overlay:stop-guide', event => { if (!authorized(event)) return false; stopGuide(); return true; });
 ipcMain.handle('overlay:draw', event => {
-  if (!authorized(event) || inkWin || guideBusy) return false;
+  if (!authorized(event) || computerBusy || inkWin || guideBusy) return false;
   stopGuide();
   const display = activeDisplay();
   const bounds = display.bounds;
@@ -613,7 +615,7 @@ ipcMain.handle('drawing:remove', event => {
   return true;
 });
 ipcMain.handle('overlay:move-cursor', async event => {
-  if (!authorized(event) || inkWin || process.platform !== 'win32' || !selectedCanvas || !selectedMarks.length) return false;
+  if (!authorized(event) || computerBusy || inkWin || process.platform !== 'win32' || !selectedCanvas || !selectedMarks.length) return false;
   const display = screen.getAllDisplays().find(item => String(item.id) === selectedCanvas.displayId);
   if (!display || display.bounds.x !== selectedCanvas.originX || display.bounds.y !== selectedCanvas.originY ||
       display.bounds.width !== selectedCanvas.width || display.bounds.height !== selectedCanvas.height) return false;
@@ -624,7 +626,7 @@ ipcMain.handle('overlay:move-cursor', async event => {
   return movePhysicalCursor(screen.dipToScreenPoint(dipPoint));
 });
 ipcMain.handle('overlay:open-goal', async (event, value) => {
-  if (!authorized(event) || typeof value !== 'string') return false;
+  if (!authorized(event) || computerBusy || typeof value !== 'string') return false;
   const goal = value.trim();
   if (!goal || goal.length > 1500) return false;
   const payload = { goal, context: { surface: { kind: 'desktop', title: 'OMYLA Desktop' }, canvas: selectedCanvas, targets: [], marks: selectedMarks } };
@@ -649,8 +651,11 @@ ipcMain.handle('overlay:set-login', (event, enabled) => {
 });
 
 if (app.requestSingleInstanceLock()) {
-  app.whenReady().then(() => { loadPreferences(); create(); wanderTimer = setInterval(wanderTick, 50); globalShortcut.register('CommandOrControl+Shift+O', () => togglePresence(true)); globalShortcut.register('Control+Alt+Shift+Q', () => app.quit()); });
+  app.whenReady().then(() => { loadPreferences(); create(); wanderTimer = setInterval(wanderTick, 50); globalShortcut.register('CommandOrControl+Shift+O', () => togglePresence(true)); globalShortcut.register('Control+Alt+Shift+Q', () => app.quit());
+    desktopTasks = installDesktopTasks({ BrowserWindow, ipcMain, screen, desktopCapturer, globalShortcut, getWindow: () => win, getDisplay: activeDisplay, authorized, targetChanged, canStart: () => !computerBusy && !guideBusy && !inkWin && !draggingPresence,
+      prepare: () => { stopGuide(); stopDrawing(); open = false; wanderTarget = undefined; win.setBounds(place(compact)); shapePresence(); win.webContents.send('task:collapse'); },
+      setBusy: value => { computerBusy = value; }, setWalking, updateAnchor: (x, y) => { anchor = { x, y }; } }); });
   app.on('second-instance', () => { if (win && !win.isDestroyed()) win.show(); });
   app.on('window-all-closed', () => app.quit());
-  app.on('will-quit', () => { clearInterval(wanderTimer); globalShortcut.unregisterAll(); });
+  app.on('will-quit', () => { desktopTasks?.stop(); clearInterval(wanderTimer); globalShortcut.unregisterAll(); });
 } else app.quit();

@@ -1,5 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('omyla', {
+  startTask: value => ipcRenderer.invoke('task:start', typeof value === 'string' ? value.slice(0, 1500) : ''),
+  stopTask: () => ipcRenderer.invoke('task:stop'),
+  onTaskState: callback => ipcRenderer.on('task:state', (_event, value) => callback(value)),
+  onTaskCollapse: callback => ipcRenderer.on('task:collapse', () => callback()),
+  onFacing: callback => ipcRenderer.on('task:facing', (_event, direction) => callback(direction)),
   toggle: () => ipcRenderer.invoke('overlay:toggle'),
   dragStart: () => ipcRenderer.invoke('overlay:drag-start'),
   dragMove: point => ipcRenderer.invoke('overlay:drag-move', point),
