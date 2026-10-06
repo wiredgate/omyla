@@ -42,7 +42,7 @@ function installDesktopTasks({BrowserWindow,ipcMain,screen,desktopCapturer,globa
    const timeout=new AbortController();const timer=setTimeout(()=>timeout.abort(),60000);
    const abort=()=>timeout.abort();signal.addEventListener('abort',abort,{once:true});
    try {
-    const response=await fetch('https://omyla.uwaaa.com/api/desktop-step',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:timeout.signal});
+    const response=await fetch('https://omyla.uwaaa.com/api/desktop-step',{method:'POST',headers:{'Content-Type':'application/json','User-Agent':'OMYLA-Desktop/0.2','Origin':'https://omyla.uwaaa.com'},body:JSON.stringify(payload),signal:timeout.signal});
     const result=await response.json();if(!response.ok)throw new Error(result.error||'planner_unavailable');return result.action;
    }finally{clearTimeout(timer);signal.removeEventListener('abort',abort);}
   },
