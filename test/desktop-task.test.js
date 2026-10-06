@@ -36,6 +36,13 @@ test('task cap ends an endless model loop',async()=>{
 test('provider asks for help without executing an action',async()=>{
  const f=fixture([{kind:'ask',summary:'どのファイルか教えて'}]);assert.equal((await f.engine.run('開いて')).state,'needs_you');assert.equal(f.calls.some(x=>x[0]==='execute'),false);
 });
+test('task deadline cancels a pending planner request',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ const f=fixture();let planning;
+ const started=new Promise(resolve=>{planning=resolve;});
+ f.adapter.plan=async(_payload,signal)=>{planning();return new Promise(resolve=>signal.addEventListener('abort',()=>resolve(click),{once:true}));};
+ const task=f.engine.run('検索');await started;t.mock.timers.tick(300000);assert.equal((await task).state,'stopped');assert.equal(f.calls.some(x=>x[0]==='execute'),false);
+});
 test('both trust boundaries reject invalid actions and arbitrary hotkeys',()=>{
  for(const a of [{...click,x:NaN},{...click,x:-.1},{...click,kind:'shell'},{...click,kind:'key',key:'WIN+R'},{...click,kind:'type',text:''}]){assert.throws(()=>validateAction(a));assert.throws(()=>parseDesktopAction(JSON.stringify(a)));}
 });

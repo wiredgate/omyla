@@ -33,6 +33,7 @@ class TaskEngine {
     const task={id:randomUUID(),goal:goal.trim(),controller:new AbortController(),steps:[],deadline:Date.now()+5*60*1000};
     this.task=task;
     const signal=task.controller.signal;
+    const expiry=setTimeout(()=>this.stop(),5*60*1000);
     const check=()=>{if(signal.aborted) throw new Error('stopped'); if(Date.now()>task.deadline) throw new Error('task_timeout');};
     const status=(state,summary,finished=false)=>this.adapter.status({id:task.id,state,summary,count:task.steps.length,finished});
     try {
@@ -65,7 +66,7 @@ class TaskEngine {
     } catch(error) {
       const state=signal.aborted||error.message==='stopped'?'stopped':'failed';
       status(state,error.message,true);return {state,error:error.message};
-    } finally {this.task=null;this.adapter.finish?.();}
+    } finally {clearTimeout(expiry);this.task=null;this.adapter.finish?.();}
   }
 }
 module.exports={TaskEngine,validateAction,actionPolicy};
