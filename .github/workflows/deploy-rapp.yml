@@ -1,0 +1,26 @@
+name: Deploy RAPP to Cloudflare
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rapp/**'
+      - '.github/workflows/deploy-rapp.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: rapp-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Deploy independent RAPP Worker and custom domain
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: rapp
+          command: deploy

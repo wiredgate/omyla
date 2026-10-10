@@ -1,0 +1,14 @@
+{
+  "name": "rapp",
+  "compatibility_date": "2026-10-10",
+  "assets": {
+    "directory": "./public"
+  },
+  "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "rapp.uwaaa.com",
+      "custom_domain": true
+    }
+  ]
+}
