@@ -1,0 +1,29 @@
+name: Deploy NARABU to Cloudflare
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'narabu/**'
+      - '.github/workflows/deploy-narabu.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: narabu-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Test matching and trial points
+        working-directory: narabu
+        run: node --test tests/*.test.js
+      - name: Deploy independent NARABU Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: narabu
+          command: deploy
