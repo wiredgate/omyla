@@ -1,0 +1,35 @@
+name: Deploy RIFT multiplayer to Cloudflare
+on:
+  push:
+    branches: [rift-online]
+    paths:
+      - 'rift-online/**'
+      - '.github/workflows/deploy-rift.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: rift-independent-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Test combat and multiplayer authority
+        working-directory: rift-online
+        run: node --test tests/*.test.js
+      - name: Deploy dedicated RIFT Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: rift-online
+          command: deploy
+      - name: Verify live login and two-client world synchronization
+        working-directory: rift-online
+        run: node tests/live-smoke.mjs https://rift-island-royale.suzukihajimy.workers.dev
