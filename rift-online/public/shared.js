@@ -1,4 +1,4 @@
-export const VERSION='2.0.0';
+export const VERSION='2.0.1';
 export const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const WEAPONS=[
  {name:'RIFT RIFLE',label:'アサルト',mag:32,delay:.09,damage:22,range:160,reload:1.2,spread:.008,color:'#66ecff'},
